@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "starsim-ai@starsim-marketplace": true,
+    "disease-modeling@starsim-marketplace": true
+  }
+}
