@@ -12,9 +12,48 @@ Usage
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
 import starsim as ss
 
 from malaria import make_sim
+
+
+# ------------------------------------------------------------------
+# Analyzer: population count per 5-year age bin
+# ------------------------------------------------------------------
+
+class AgeBinPopulation(ss.Analyzer):
+    """
+    Record alive-agent counts per 5-year age bin, plus 100+ and total,
+    at every timestep.
+
+    Bins stored in self.hist, keyed by label string.
+    """
+
+    # Standard 5-year bins [0,5), [5,10), …, [95,100)
+    BINS = [(lo, lo + 5) for lo in range(0, 100, 5)]
+
+    def __init__(self):
+        super().__init__()
+        self.labels = [f'{lo}-{hi}' for lo, hi in self.BINS] + ['100+', 'Total']
+        self.hist   = {lbl: [] for lbl in self.labels}
+
+    def step(self):
+        people = self.sim.people
+        alive  = np.asarray(people.alive.values, dtype=bool)
+        age    = np.asarray(people.age.values,   dtype=float)
+
+        for (lo, hi), lbl in zip(self.BINS, self.labels):
+            mask = alive & (age >= lo) & (age < hi)
+            self.hist[lbl].append(int(mask.sum()))
+
+        self.hist['100+'].append(int((alive & (age >= 100)).sum()))
+        self.hist['Total'].append(int(alive.sum()))
+
+    def finalize_results(self):
+        super().finalize_results()
+        for lbl in self.labels:
+            self.hist[lbl] = np.array(self.hist[lbl])
 
 # ------------------------------------------------------------------
 # Simulation settings
@@ -22,7 +61,7 @@ from malaria import make_sim
 
 N_AGENTS = 10_000
 START    = 2000
-STOP     = 2004
+STOP     = 2010
 
 SEASONAL_EIR = [2, 2, 5, 6, 8, 10, 12, 8, 5, 3, 2, 2]   # wet-season peak
 
@@ -33,22 +72,22 @@ SCENARIOS = [
         mosquito     = 'eir_only',
         mosquito_pars= dict(eir=SEASONAL_EIR),
     ),
-    dict(
-        label        = 'SEIS + EIR-only',
-        human        = 'seis',
-        mosquito     = 'eir_only',
-        mosquito_pars= dict(eir=SEASONAL_EIR),
-    ),
-    dict(
-        label        = 'SIS + agents',
-        human        = 'sis',
-        mosquito     = 'agents',
-    ),
-    dict(
-        label        = 'SEIS + agents',
-        human        = 'seis',
-        mosquito     = 'agents',
-    ),
+    #dict(
+    #    label        = 'SEIS + EIR-only',
+    #    human        = 'seis',
+    #    mosquito     = 'eir_only',
+    #    mosquito_pars= dict(eir=SEASONAL_EIR),
+    #),
+    #dict(
+    #    label        = 'SIS + agents',
+    #    human        = 'sis',
+    #    mosquito     = 'agents',
+    #),
+    #dict(
+    #    label        = 'SEIS + agents',
+    #    human        = 'seis',
+    #    mosquito     = 'agents',
+    #),
 ]
 
 # ------------------------------------------------------------------
@@ -65,6 +104,7 @@ for sc in SCENARIOS:
         dt            = ss.days(1),
         label         = label,
         rand_seed     = 0,
+        analyzers     = AgeBinPopulation(),
         **sc,
     )
     print(f'Running: {label}')
@@ -167,3 +207,35 @@ plt.tight_layout()
 plt.savefig('malaria_mosquitoes.png', dpi=150)
 plt.show()
 print('Plot saved to malaria_mosquitoes.png')
+
+# ------------------------------------------------------------------
+# Plot: population by 5-year age bin — one image per sim, 4×6 grid
+# ------------------------------------------------------------------
+
+NCOLS, NROWS = 6, 4   # 24 slots; 22 used, 2 hidden
+
+for sim in sims:
+    az          = sim.analyzers[0]
+    disease_key = type(sim.diseases[0]).__name__.lower()
+    timevec     = sim.results[disease_key].timevec.years
+
+    fig, axes = plt.subplots(NROWS, NCOLS, figsize=(22, 14), sharex=True)
+    fig.suptitle(f'Population by 5-year age bin — {sim.label}', fontsize=14)
+
+    for ax, lbl in zip(axes.flat, az.labels):
+        ax.plot(timevec, az.hist[lbl], lw=1.2, color='steelblue')
+        ax.set_title(lbl, fontsize=9)
+        ax.set_ylabel('Count', fontsize=7)
+        ax.set_xlabel('Year', fontsize=7)
+        ax.tick_params(labelsize=7)
+        ax.grid(True, alpha=0.3)
+
+    for ax in axes.flat[len(az.labels):]:
+        ax.set_visible(False)
+
+    slug  = sim.label.lower().replace(' ', '_').replace('+', 'plus').replace('-', '').strip('_')
+    fname = f'malaria_age_bins_{slug}.png'
+    plt.tight_layout()
+    plt.savefig(fname, dpi=150)
+    plt.show()
+    print(f'Plot saved to {fname}')
