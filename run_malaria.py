@@ -42,9 +42,8 @@ DEMOGRAPHICS = [
 # Simulation settings
 # ------------------------------------------------------------------
 
-N_AGENTS = 10_000
-START    = 2000
-STOP     = 2002
+START = 2000
+STOP  = 2002
 
 # ------------------------------------------------------------------
 # Three-node spatial configuration
@@ -59,9 +58,9 @@ THREE_NODES = NodeGrid(
 
     # Per-node seasonal EIR (bites/person/year) — used by eir_only mosquito model.
     eir = [
-        [ 5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5,  5],   # Urban    — high year-round
+        [ 5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5,  5],   # Urban      — high year-round
         [ 2,  2,  5,  6,  8, 10, 12,  8,  5,  3,  2,  2],   # Peri-urban — moderate wet-season
-        [ 1,  1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1],   # Rural    — lower with sharp peak
+        [ 1,  1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1],   # Rural      — lower with sharp peak
     ],
 
     # Per-node monthly emergence (new females/human/day) — used by agents model.
@@ -91,21 +90,22 @@ sims    = []
 
 for sc in SCENARIOS:
     label = sc.pop('label')
-    sim   = make_sim(
-        n_agents     = N_AGENTS,
+    sim = make_sim(
+        age_data     = AGE_DATA,
         start        = START,
         stop         = STOP,
         dt           = ss.days(1),
         label        = label,
         rand_seed    = 0,
-        people       = ss.People(N_AGENTS, age_data=AGE_DATA),
         demographics = DEMOGRAPHICS,
         analyzers    = AgeBinPopulation(),
         **sc,
     )
     print(f'Running: {label}')
     monitor.start()
+
     sim.run()
+    
     monitor.stop(sim)
     sims.append(sim)
 

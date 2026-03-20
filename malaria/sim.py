@@ -20,7 +20,7 @@ from .node_state        import NodeState
 def make_sim(
     human          = 'sis',
     mosquito       = 'agents',
-    n_agents       = 10_000,
+    age_data       = None,
     start          = 2000,
     stop           = 2010,
     dt             = None,
@@ -54,8 +54,10 @@ def make_sim(
           useful for calibration runs or when mosquito dynamics are not of
           interest.
 
-    n_agents : int
-        Number of human agents. Default: 10 000.
+    age_data : pd.DataFrame or None
+        Age distribution passed to ``ss.People``.  DataFrame with ``age`` and
+        ``value`` columns (value = relative weight per single-year age group).
+        When *None* agents are initialised with a uniform age distribution.
 
     start : int or str
         Simulation start. Accepts an integer year (e.g. ``2000``) or an ISO
@@ -154,6 +156,11 @@ def make_sim(
     if dt is None:
         dt = ss.days(1)
 
+    if nodes is None:
+        nodes = NodeGrid(populations=[10_000])
+    n_agents = nodes.total_population
+    people   = ss.People(n_agents, age_data=age_data)
+
     if human == 'sis':
         human_mod = MalariaHumanSIS(pars=human_pars)
     elif human == 'seis':
@@ -174,13 +181,10 @@ def make_sim(
             f"Valid options are 'agents' or 'eir_only'."
         )
 
-    # NodeState is always required — default to a single spatial node.
-    if nodes is None:
-        nodes = NodeGrid()
     node_state = NodeState(nodes)
 
     return ss.Sim(
-        n_agents   = n_agents,
+        people     = people,
         start      = start,
         stop       = stop,
         dt         = dt,

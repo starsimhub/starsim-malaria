@@ -92,16 +92,18 @@ class NodeGrid:
     ):
         # --- n_nodes from populations ---
         if populations is None:
-            self.n_nodes       = 1
-            self.pop_fractions = np.ones(1)
+            self.n_nodes          = 1
+            self.pop_fractions    = np.ones(1)
+            self.total_population = None
         else:
             pops = np.asarray(populations, dtype=float)
             if pops.ndim != 1 or len(pops) == 0:
                 raise ValueError('populations must be a non-empty 1-D array')
             if np.any(pops <= 0):
                 raise ValueError('All populations must be positive')
-            self.n_nodes       = len(pops)
-            self.pop_fractions = pops / pops.sum()
+            self.n_nodes          = len(pops)
+            self.pop_fractions    = pops / pops.sum()
+            self.total_population = int(pops.sum())
 
         # --- labels ---
         if labels is None:
