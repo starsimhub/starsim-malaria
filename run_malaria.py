@@ -13,7 +13,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
+import psutil
+import time
 import starsim as ss
 
 from malaria import make_sim
@@ -116,7 +119,10 @@ SCENARIOS = [
 # Build and run
 # ------------------------------------------------------------------
 
-sims = []
+_proc = psutil.Process(os.getpid())
+
+sims  = []
+perfs = []
 for sc in SCENARIOS:
     label        = sc.pop('label')
     sim = make_sim(
@@ -132,8 +138,18 @@ for sc in SCENARIOS:
         **sc,
     )
     print(f'Running: {label}')
+    mem_before = _proc.memory_info().rss
+    t0         = time.perf_counter()
     sim.run()
+    elapsed    = time.perf_counter() - t0
+    mem_after  = _proc.memory_info().rss
     sims.append(sim)
+    perfs.append(dict(
+        elapsed      = elapsed,
+        mem_before   = mem_before / 1024**2,
+        mem_after    = mem_after  / 1024**2,
+        mem_delta    = (mem_after - mem_before) / 1024**2,
+    ))
 
 # ------------------------------------------------------------------
 # Plot: prevalence comparison
@@ -263,3 +279,51 @@ for sim in sims:
     plt.savefig(fname, dpi=150)
     plt.show()
     print(f'Plot saved to {fname}')
+
+# ------------------------------------------------------------------
+# Performance: CPU plot + text summary — one per sim
+# ------------------------------------------------------------------
+
+for sim, perf in zip(sims, perfs):
+    slug = sim.label.lower().replace(' ', '_').replace('+', 'plus').replace('-', '').strip('_')
+
+    # CPU-time bar chart from the integration loop
+    fig = sim.loop.plot_cpu()
+    if fig is not None:
+        cpu_fname = f'malaria_cpu_{slug}.png'
+        fig.savefig(cpu_fname, dpi=150)
+        plt.close(fig)
+        print(f'CPU plot saved to {cpu_fname}')
+
+    # Per-module CPU breakdown
+    loop_df      = sim.loop.to_df()
+    module_times = loop_df.groupby('module')['cpu_time'].sum().sort_values(ascending=False)
+
+    disease_name   = type(sim.diseases[0]).__name__.lower()
+    connector_names = [type(c).__name__.lower() for c in sim.connectors] if sim.connectors else []
+
+    W = 52
+    lines = [
+        f'{"=" * W}',
+        f'  {sim.label}',
+        f'{"=" * W}',
+        f'  Runtime        : {perf["elapsed"]:.2f}s',
+        f'  Memory (RSS)   : {perf["mem_before"]:.1f} → {perf["mem_after"]:.1f} MB  (Δ {perf["mem_delta"]:+.1f} MB)',
+        f'  Human  ({disease_name})',
+        f'    CPU          : {module_times.get(disease_name, 0.0):.3f}s',
+    ]
+    for cname in connector_names:
+        lines += [
+            f'  Mosquito ({cname})',
+            f'    CPU          : {module_times.get(cname, 0.0):.3f}s',
+        ]
+    lines.append(f'  Top modules by CPU:')
+    for mod, t in module_times.head(8).items():
+        lines.append(f'    {mod:<38}  {t:.3f}s')
+
+    summary = '\n'.join(lines)
+
+    perf_fname = f'malaria_perf_{slug}.txt'
+    with open(perf_fname, 'w', encoding='utf-8') as f:
+        f.write(summary + '\n')
+    print(f'Performance summary saved to {perf_fname}')
