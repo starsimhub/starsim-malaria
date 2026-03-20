@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import starsim as ss
 
 from malaria import make_sim
@@ -56,6 +57,27 @@ class AgeBinPopulation(ss.Analyzer):
             self.hist[lbl] = np.array(self.hist[lbl])
 
 # ------------------------------------------------------------------
+# Demographics: age pyramid + balanced birth/death rates
+# ------------------------------------------------------------------
+
+AGE_BIN_EDGES     = [0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,100]
+AGE_BIN_FRACTIONS = [0.13,0.12,0.11,0.10,0.09,0.08,0.07,0.06,0.05,0.04,0.035,0.03,0.025,0.02,0.015,0.01,0.005]
+
+# Expand bin fractions to per-year weights for ss.People age_data
+_ages, _vals = [], []
+for lo, hi, frac in zip(AGE_BIN_EDGES[:-1], AGE_BIN_EDGES[1:], AGE_BIN_FRACTIONS):
+    per_year = frac / (hi - lo)
+    for age in range(lo, hi):
+        _ages.append(age)
+        _vals.append(per_year)
+AGE_DATA = pd.DataFrame({'age': _ages, 'value': _vals})
+
+DEMOGRAPHICS = [
+    ss.Births(birth_rate=ss.peryear(20)),
+    ss.Deaths(death_rate=ss.peryear(20)),
+]
+
+# ------------------------------------------------------------------
 # Simulation settings
 # ------------------------------------------------------------------
 
@@ -72,22 +94,22 @@ SCENARIOS = [
         mosquito     = 'eir_only',
         mosquito_pars= dict(eir=SEASONAL_EIR),
     ),
-    #dict(
-    #    label        = 'SEIS + EIR-only',
-    #    human        = 'seis',
-    #    mosquito     = 'eir_only',
-    #    mosquito_pars= dict(eir=SEASONAL_EIR),
-    #),
-    #dict(
-    #    label        = 'SIS + agents',
-    #    human        = 'sis',
-    #    mosquito     = 'agents',
-    #),
-    #dict(
-    #    label        = 'SEIS + agents',
-    #    human        = 'seis',
-    #    mosquito     = 'agents',
-    #),
+    dict(
+        label        = 'SEIS + EIR-only',
+        human        = 'seis',
+        mosquito     = 'eir_only',
+        mosquito_pars= dict(eir=SEASONAL_EIR),
+    ),
+    dict(
+        label        = 'SIS + agents',
+        human        = 'sis',
+        mosquito     = 'agents',
+    ),
+    dict(
+        label        = 'SEIS + agents',
+        human        = 'seis',
+        mosquito     = 'agents',
+    ),
 ]
 
 # ------------------------------------------------------------------
@@ -104,6 +126,8 @@ for sc in SCENARIOS:
         dt            = ss.days(1),
         label         = label,
         rand_seed     = 0,
+        people        = ss.People(N_AGENTS, age_data=AGE_DATA),
+        demographics  = DEMOGRAPHICS,
         analyzers     = AgeBinPopulation(),
         **sc,
     )
