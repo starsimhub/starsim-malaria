@@ -13,6 +13,8 @@ from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
 from .mosquito_eir_only import MosqitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
+from .node_grid         import NodeGrid
+from .node_state        import NodeState
 
 
 def make_sim(
@@ -24,6 +26,7 @@ def make_sim(
     dt             = None,
     human_pars     = None,
     mosquito_pars  = None,
+    nodes          = None,
     **sim_kwargs,
 ):
     """
@@ -171,12 +174,17 @@ def make_sim(
             f"Valid options are 'agents' or 'eir_only'."
         )
 
+    # NodeState is always required — default to a single spatial node.
+    if nodes is None:
+        nodes = NodeGrid()
+    node_state = NodeState(nodes)
+
     return ss.Sim(
         n_agents   = n_agents,
         start      = start,
         stop       = stop,
         dt         = dt,
         diseases   = human_mod,
-        connectors = mos,
+        connectors = [node_state, mos],
         **sim_kwargs,
     )

@@ -186,10 +186,13 @@ class MalariaHumanBase(ss.SIS):
             ss.FloatArr('fever_F',              default=_NORMAL_BODY_TEMP_F, label='Body temperature °F (98.6 = susceptible)'),
             ss.IntArr('symptom_state',          default=SYMPTOM_NONE,        label='Symptom state (SYMPTOM_* codes; 0 = none)'),
             ss.FloatArr('ti_dead',                                           label='Scheduled disease-death timestep (nan = none)'),
+            ss.IntArr('node_id',                default=0,                   label='Spatial node index (0 when no NodeState)'),
         )
 
         # Holds the current-step total EIR; read by the p_inf_bite callable.
         self._eir_total_dt = 0.0
+        # NodeState — resolved once on first call to _get_node_state().
+        self._ns_cache = None
         return
 
     # ------------------------------------------------------------------
@@ -216,6 +219,9 @@ class MalariaHumanBase(ss.SIS):
         New agents are detected by biting_heterogeneity == 0 (default FloatArr
         value), covering both the initial population and born agents.
         rel_biting_rate is recomputed every step because agents age continuously.
+        When a NodeState is present, new agents are also assigned to a node
+        drawn from the grid's pop_fractions (births use the same initial
+        fractions so node populations remain stable over time).
         """
         alive  = self.sim.people.alive
         uninit = (self.biting_heterogeneity == 0.0) & alive
@@ -227,6 +233,10 @@ class MalariaHumanBase(ss.SIS):
                 self.biting_heterogeneity[uids] = np.maximum(drawn, 1e-10)
             else:
                 self.biting_heterogeneity[uids] = 1.0
+
+            ns    = self._get_node_state()
+            fracs = ns.grid.pop_fractions
+            self.node_id[uids] = np.random.choice(len(fracs), size=len(uids), p=fracs)
 
         self._update_rel_biting_rate()
         return
@@ -338,39 +348,33 @@ class MalariaHumanBase(ss.SIS):
         """
         EIR-based M→H transmission, bypassing Starsim's network machinery.
 
-        Overrides ss.Infection.step() to replace network-based transmission
-        with EIR-driven biting. Contact networks attached to the sim are
-        intentionally ignored — all human exposure comes through mosquito biting.
-
-        Retrieves indoor and outdoor EIR from the companion mosquito module
-        and combines them into a per-timestep base infection probability:
-
-            base_p = (EIR_indoor_dt + EIR_outdoor_dt) * prob_human_infected_on_bite
-
-        Each susceptible agent's probability is then scaled by their individual
-        rel_biting_rate via the p_inf_bite dynamic callable.
+        Reads per-node EIR from NodeState (written by the mosquito connector
+        in the previous timestep) and applies M→H transmission separately for
+        susceptibles in each node.  NodeState is always present — a 1-node
+        grid is created by make_sim() when no explicit spatial structure is
+        configured.
 
         set_prognoses() is called for newly exposed agents. Override
         set_prognoses() in subclasses to route agents to a different starting
         state (e.g. the exposed state in SEIS).
         """
-        mos = self._mosquito_mod()
-        if mos is None:
-            return
+        ns = self._get_node_state()
+        all_new_uids = []
+        for nid in range(ns.grid.n_nodes):
+            eir_total_dt = ns.eir_indoor[nid] + ns.eir_outdoor[nid]
+            if eir_total_dt <= 0:
+                continue
+            sus_in_node = self.susceptible & (self.node_id == nid)
+            if not sus_in_node.any():
+                continue
+            self._eir_total_dt = eir_total_dt
+            new_uids = self.pars.p_inf_bite.filter(sus_in_node)
+            all_new_uids.extend(new_uids)
 
-        eir_indoor_dt  = mos.get_eir_indoor(self.sim)
-        eir_outdoor_dt = mos.get_eir_outdoor(self.sim)
-        eir_total_dt   = eir_indoor_dt + eir_outdoor_dt
+        if all_new_uids:
+            self.set_prognoses(np.array(all_new_uids), sources=None)
 
-        if eir_total_dt <= 0:
-            return
-
-        # Store for the p_inf_bite callable (called inside filter()).
-        self._eir_total_dt = eir_total_dt
-
-        new_uids = self.pars.p_inf_bite.filter(self.susceptible)
-        if len(new_uids):
-            self.set_prognoses(new_uids, sources=None)
+        self._write_node_state(ns)
         return
 
     # ------------------------------------------------------------------
@@ -489,15 +493,49 @@ class MalariaHumanBase(ss.SIS):
         """
         return
 
-    def _mosquito_mod(self):
+    def _get_node_state(self):
         """
-        Return the first module in sim.modules that provides get_eir_indoor(),
-        or None.
+        Return the NodeState connector, raising RuntimeError if not found.
 
-        Duck-typing: any mosquito module that implements the
-        get_eir_indoor(sim) / get_eir_outdoor(sim) interface works.
+        Searches sim.modules on the first call and caches the result.
+        NodeState is always expected — make_sim() creates a 1-node
+        NodeGrid/NodeState when no explicit spatial structure is configured.
         """
-        for mod in self.sim.modules:
-            if hasattr(mod, 'get_eir_indoor'):
-                return mod
-        return None
+        if self._ns_cache is None:
+            self._ns_cache = next(
+                (m for m in self.sim.modules if getattr(m, '_is_node_state', False)),
+                None,
+            )
+            if self._ns_cache is None:
+                raise RuntimeError(
+                    f'{type(self).__name__}._get_node_state(): no NodeState '
+                    'module found in sim.modules.  Use make_sim() or add '
+                    'NodeState as the first connector manually.'
+                )
+        return self._ns_cache
+
+    def _write_node_state(self, ns):
+        """
+        Write per-node human state to NodeState for the mosquito connector.
+
+        Computes n_humans and biting-rate-weighted mean infectiousness for
+        each node.  Indoor and outdoor p_inf are set equal (no indoor-specific
+        interventions yet).
+        """
+        alive = self.sim.people.alive
+        c     = float(self.pars.prob_mosquito_infected_on_bite)
+        for nid in range(ns.grid.n_nodes):
+            alive_in_node = alive & (self.node_id == nid)
+            n             = int(alive_in_node.sum())
+            ns.n_humans[nid] = n
+            if n == 0:
+                ns.p_inf_indoor[nid]  = 0.0
+                ns.p_inf_outdoor[nid] = 0.0
+                continue
+            uids = alive_in_node.uids
+            w    = np.array(self.rel_biting_rate[uids], dtype=float)
+            inf  = np.array(self.infectiousness[uids],  dtype=float)
+            p    = float((w * inf).sum()) / n * c
+            ns.p_inf_indoor[nid]  = p
+            ns.p_inf_outdoor[nid] = p
+        return

@@ -80,6 +80,8 @@ from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
 from .mosquito_eir_only import MosqitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
+from .node_grid         import NodeGrid
+from .node_state        import NodeState
 from .sim               import make_sim
 
 __all__ = [
@@ -88,6 +90,8 @@ __all__ = [
     'MalariaHumanSEIS',
     'MosqitoesEirOnly',
     'MosquitoesAdultFemaleAgentsOnly',
+    'NodeGrid',
+    'NodeState',
     'make_sim',
     'SYMPTOM_NONE',
     'SYMPTOM_CLINICAL',

@@ -99,6 +99,7 @@ class MosqitoesEirOnly(ss.Module):
         )
         self.update_pars(pars, **kwargs)
         self._validate()
+        self._ns_cache = None
         return
 
     # ------------------------------------------------------------------
@@ -170,12 +171,26 @@ class MosqitoesEirOnly(ss.Module):
         return
 
     def step(self):
-        """Record total, indoor, and outdoor annualized EIR each timestep."""
-        ti = self.sim.ti
-        annual = self._annual_rate(self.sim)
+        """Record annualized EIR and write per-timestep EIR to NodeState."""
+        sim    = self.sim
+        ti     = sim.ti
+        annual = self._annual_rate(sim)
         self.results.eir_annual[ti]         = annual
         self.results.eir_indoor_annual[ti]  = annual * self.pars.f_indoor
         self.results.eir_outdoor_annual[ti] = annual * (1.0 - self.pars.f_indoor)
+
+        ns      = self._get_node_state()
+        dt_year = sim.t.dt_year
+        grid    = ns.grid
+        for nid in range(grid.n_nodes):
+            # Per-node EIR from NodeGrid if specified, else module-level parameter.
+            if grid.eir is not None:
+                node_eir = grid.eir[nid] if grid.eir.ndim == 1 else self._interpolate_profile(grid.eir[nid], sim.t.year % 1)
+            else:
+                node_eir = annual
+            f = grid.f_indoor[nid] if grid.f_indoor is not None else self.pars.f_indoor
+            ns.eir_indoor[nid]  = node_eir * f         * dt_year
+            ns.eir_outdoor[nid] = node_eir * (1.0 - f) * dt_year
         return
 
     # ------------------------------------------------------------------
@@ -244,3 +259,24 @@ class MosqitoesEirOnly(ss.Module):
         if not (0.0 <= f <= 1.0):
             raise ValueError(f'f_indoor must be in [0, 1], got {f}')
         return
+
+    def _get_node_state(self):
+        """Return NodeState, raising RuntimeError if not found."""
+        if self._ns_cache is None:
+            self._ns_cache = next(
+                (m for m in self.sim.modules if getattr(m, '_is_node_state', False)),
+                None,
+            )
+            if self._ns_cache is None:
+                raise RuntimeError(
+                    f'{type(self).__name__}._get_node_state(): no NodeState '
+                    'module found. Use make_sim() or add NodeState manually.'
+                )
+        return self._ns_cache
+
+    def _interpolate_profile(self, profile, t):
+        """Interpolate a 12-element monthly profile at fractional year t."""
+        x_months = np.arange(12) / 12
+        x_wrap   = np.append(x_months, 1.0)
+        y_wrap   = np.append(profile, profile[0])
+        return float(np.interp(t, x_wrap, y_wrap))

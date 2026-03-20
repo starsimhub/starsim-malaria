@@ -19,7 +19,9 @@ import psutil
 import time
 import starsim as ss
 
-from malaria import make_sim
+from malaria import make_sim, NodeGrid
+from malaria import MosquitoesAdultFemaleAgentsOnly
+
 
 
 # ------------------------------------------------------------------
@@ -39,8 +41,11 @@ class AgeBinPopulation(ss.Analyzer):
 
     def __init__(self):
         super().__init__()
-        self.labels = [f'{lo}-{hi}' for lo, hi in self.BINS] + ['100+', 'Total']
-        self.hist   = {lbl: [] for lbl in self.labels}
+        self.labels               = [f'{lo}-{hi}' for lo, hi in self.BINS] + ['100+', 'Total']
+        self.hist                 = {lbl: [] for lbl in self.labels}
+        self.node_hist            = {}   # populated lazily on first step; keyed by node label
+        self.node_infected_hist   = {}   # infected count per node per step
+        self.node_mosquito_hist   = {}   # mosquito count per node per step (agents mode only)
 
     def step(self):
         people = self.sim.people
@@ -54,10 +59,43 @@ class AgeBinPopulation(ss.Analyzer):
         self.hist['100+'].append(int((alive & (age >= 100)).sum()))
         self.hist['Total'].append(int(alive.sum()))
 
+        # Per-node population and infected counts
+        disease  = self.sim.diseases[0]
+        ns       = disease._get_node_state()
+        node_id  = np.asarray(disease.node_id.values, dtype=int)
+        infected = np.asarray(disease.infected.values, dtype=bool)
+        if not self.node_hist:
+            for lbl in ns.grid.labels:
+                self.node_hist[lbl]          = []
+                self.node_infected_hist[lbl] = []
+        for nid, lbl in enumerate(ns.grid.labels):
+            in_node = alive & (node_id == nid)
+            self.node_hist[lbl].append(int(in_node.sum()))
+            self.node_infected_hist[lbl].append(int((in_node & infected).sum()))
+
+        # Per-node mosquito counts (only when agent-based mosquitoes are present)
+        mos_mod = next(
+            (m for m in self.sim.modules if isinstance(m, MosquitoesAdultFemaleAgentsOnly)),
+            None,
+        )
+        if mos_mod is not None:
+            if not self.node_mosquito_hist:
+                for lbl in ns.grid.labels:
+                    self.node_mosquito_hist[lbl] = []
+            for nid, lbl in enumerate(ns.grid.labels):
+                self.node_mosquito_hist[lbl].append(
+                    int((mos_mod.alive & (mos_mod.node_id == nid)).sum())
+                )
+
     def finalize_results(self):
         super().finalize_results()
         for lbl in self.labels:
             self.hist[lbl] = np.array(self.hist[lbl])
+        for lbl in self.node_hist:
+            self.node_hist[lbl]          = np.array(self.node_hist[lbl])
+            self.node_infected_hist[lbl] = np.array(self.node_infected_hist[lbl])
+        for lbl in self.node_mosquito_hist:
+            self.node_mosquito_hist[lbl] = np.array(self.node_mosquito_hist[lbl])
 
 # ------------------------------------------------------------------
 # Demographics: age pyramid + balanced birth/death rates
@@ -86,32 +124,61 @@ DEMOGRAPHICS = [
 
 N_AGENTS = 10_000
 START    = 2000
-STOP     = 2010
+STOP     = 2002
 
-SEASONAL_EIR = [2, 2, 5, 6, 8, 10, 12, 8, 5, 3, 2, 2]   # wet-season peak
+# ------------------------------------------------------------------
+# Three-node spatial configuration
+# Node 0 (Urban):      5 000 people — high transmission, mostly indoor biting
+# Node 1 (Peri-urban): 3 000 people — moderate transmission
+# Node 2 (Rural):      2 000 people — lower transmission, more outdoor biting
+# ------------------------------------------------------------------
+
+THREE_NODES = NodeGrid(
+    populations = [5_000, 3_000, 2_000],
+    labels      = ['Urban', 'Peri-urban', 'Rural'],
+
+    # Per-node seasonal EIR (bites/person/year) — used by eir_only mosquito model.
+    eir = [
+        [ 5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5,  5],   # Urban    — high year-round
+        [ 2,  2,  5,  6,  8, 10, 12,  8,  5,  3,  2,  2],   # Peri-urban — moderate wet-season
+        [ 1,  1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1],   # Rural    — lower with sharp peak
+    ],
+
+    # Per-node monthly emergence (new females/human/day) — used by agents model.
+    emergence = [
+        [0.008, 0.008, 0.015, 0.030, 0.045, 0.060, 0.060, 0.045, 0.030, 0.015, 0.008, 0.008],
+        [0.005, 0.005, 0.010, 0.020, 0.030, 0.040, 0.040, 0.030, 0.020, 0.010, 0.005, 0.005],
+        [0.002, 0.002, 0.005, 0.010, 0.018, 0.025, 0.025, 0.018, 0.010, 0.005, 0.002, 0.002],
+    ],
+
+    # Per-node indoor bite fraction.
+    f_indoor = [0.80, 0.70, 0.55],
+)
 
 SCENARIOS = [
     dict(
-        label        = 'SIS + EIR-only',
-        human        = 'sis',
-        mosquito     = 'eir_only',
-        mosquito_pars= dict(eir=SEASONAL_EIR),
+        label    = 'SIS + EIR-only',
+        human    = 'sis',
+        mosquito = 'eir_only',
+        nodes    = THREE_NODES,
     ),
     dict(
-        label        = 'SEIS + EIR-only',
-        human        = 'seis',
-        mosquito     = 'eir_only',
-        mosquito_pars= dict(eir=SEASONAL_EIR),
+        label    = 'SEIS + EIR-only',
+        human    = 'seis',
+        mosquito = 'eir_only',
+        nodes    = THREE_NODES,
     ),
     dict(
-        label        = 'SIS + agents',
-        human        = 'sis',
-        mosquito     = 'agents',
+        label    = 'SIS + agents',
+        human    = 'sis',
+        mosquito = 'agents',
+        nodes    = THREE_NODES,
     ),
     dict(
-        label        = 'SEIS + agents',
-        human        = 'seis',
-        mosquito     = 'agents',
+        label    = 'SEIS + agents',
+        human    = 'seis',
+        mosquito = 'agents',
+        nodes    = THREE_NODES,
     ),
 ]
 
@@ -151,6 +218,8 @@ for sc in SCENARIOS:
         mem_delta    = (mem_after - mem_before) / 1024**2,
     ))
 
+NODE_COLORS = ['steelblue', 'darkorange', 'seagreen', 'firebrick', 'purple', 'brown']
+
 # ------------------------------------------------------------------
 # Plot: prevalence comparison
 # ------------------------------------------------------------------
@@ -166,10 +235,20 @@ for ax, sim in zip(axes.flat, sims):
     n_alive     = sim.results.n_alive
     prevalence  = res.n_infected / n_alive * 100   # percent
 
-    ax.plot(res.n_infected.timevec, prevalence, lw=1.5)
+    timevec = res.n_infected.timevec.years
+    ax.plot(timevec, prevalence, lw=2, color='black', label='Total')
+
+    az = sim.analyzers[0]
+    for (node_lbl, n_inf), color in zip(az.node_infected_hist.items(), NODE_COLORS):
+        n_alive_node = az.node_hist[node_lbl]
+        with np.errstate(invalid='ignore', divide='ignore'):
+            node_prev = np.where(n_alive_node > 0, n_inf / n_alive_node * 100, 0.0)
+        ax.plot(timevec, node_prev, lw=1.2, color=color, linestyle='--', label=node_lbl)
+
     ax.set_title(sim.label)
     ax.set_ylabel('Prevalence (%)')
     ax.set_xlabel('Year')
+    ax.legend(fontsize=7)
     ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
@@ -180,8 +259,6 @@ print('Plot saved to malaria_prevalence.png')
 # ------------------------------------------------------------------
 # Plot: compartment fractions (S, E when present, I) — 2×2 grid
 # ------------------------------------------------------------------
-
-from malaria import MosquitoesAdultFemaleAgentsOnly
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True, sharey=True)
 fig.suptitle('Malaria compartment fractions', fontsize=13)
@@ -249,10 +326,40 @@ plt.show()
 print('Plot saved to malaria_mosquitoes.png')
 
 # ------------------------------------------------------------------
+# Plot: mosquito count per node — one chart per agents-mode sim
+# ------------------------------------------------------------------
+
+agents_sims = [s for s in sims if s.analyzers[0].node_mosquito_hist]
+if agents_sims:
+    fig, axes = plt.subplots(1, len(agents_sims), figsize=(6 * len(agents_sims), 5),
+                             sharex=True, sharey=True, squeeze=False)
+    fig.suptitle('Mosquito count by node', fontsize=13)
+
+    for ax, sim in zip(axes.flat, agents_sims):
+        az          = sim.analyzers[0]
+        disease_key = type(sim.diseases[0]).__name__.lower()
+        timevec     = sim.results[disease_key].timevec.years
+
+        for (node_lbl, counts), color in zip(az.node_mosquito_hist.items(), NODE_COLORS):
+            ax.plot(timevec, counts, lw=1.5, color=color, label=node_lbl)
+
+        ax.set_title(sim.label)
+        ax.set_xlabel('Year')
+        ax.set_ylabel('Number of mosquitoes')
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('malaria_mosquitoes_by_node.png', dpi=150)
+    plt.show()
+    print('Plot saved to malaria_mosquitoes_by_node.png')
+
+# ------------------------------------------------------------------
 # Plot: population by 5-year age bin — one image per sim, 4×6 grid
 # ------------------------------------------------------------------
 
-NCOLS, NROWS = 6, 4   # 24 slots; 22 used, 2 hidden
+NCOLS, NROWS = 6, 4   # 24 slots; 22 age-bin + 1 per-node + 1 hidden
+
 
 for sim in sims:
     az          = sim.analyzers[0]
@@ -270,7 +377,22 @@ for sim in sims:
         ax.tick_params(labelsize=7)
         ax.grid(True, alpha=0.3)
 
-    for ax in axes.flat[len(az.labels):]:
+    # 23rd slot: per-node population totals (one line per node)
+    if az.node_hist:
+        ax_node = axes.flat[len(az.labels)]
+        for (node_lbl, counts), color in zip(az.node_hist.items(), NODE_COLORS):
+            ax_node.plot(timevec, counts, lw=1.2, color=color, label=node_lbl)
+        ax_node.set_title('By node', fontsize=9)
+        ax_node.set_ylabel('Count', fontsize=7)
+        ax_node.set_xlabel('Year', fontsize=7)
+        ax_node.tick_params(labelsize=7)
+        ax_node.legend(fontsize=6)
+        ax_node.grid(True, alpha=0.3)
+        hidden_start = len(az.labels) + 1
+    else:
+        hidden_start = len(az.labels)
+
+    for ax in axes.flat[hidden_start:]:
         ax.set_visible(False)
 
     slug  = sim.label.lower().replace(' ', '_').replace('+', 'plus').replace('-', '').strip('_')
