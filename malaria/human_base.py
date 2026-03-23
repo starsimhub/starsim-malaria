@@ -24,7 +24,7 @@ To create a new variant, inherit from MalariaHumanBase and override:
 
   _update_symptom_state()
       Placeholder called each step for infected agents. Override to compute
-      symptom_state from biomarkers (e.g. parasite density, immune status).
+      symptom_state from infectiousness, hrp2_pg, and fever_F.
 
   step_die(uids)
       Called when agents die. Override to reset any extra states defined by
@@ -82,11 +82,11 @@ class MalariaHumanBase(ss.SIS):
 
     prob_human_infected_on_bite : float
         Probability of human infection per infectious mosquito bite
-        (Ross-MacDonald *b*). Default: 0.5.
+        (Ross-MacDonald *b*). Default: 1.0.
 
     prob_mosquito_infected_on_bite : float
         Probability of mosquito infection per bite on an infectious human
-        (Ross-MacDonald *c*). Default: 0.5.
+        (Ross-MacDonald *c*). Default: 1.0.
 
     heterogeneity_shape : float
         Gamma shape parameter for individual biting heterogeneity.
@@ -126,6 +126,11 @@ class MalariaHumanBase(ss.SIS):
     def __init__(self):
         super().__init__()
         self.define_pars(
+            # -------------------------------------------------------------------
+            # Starsim distributions give you the ability to reduce stochastic
+            # variability - greatly reduce butterfly effects.  See DanK work.
+            # -------------------------------------------------------------------
+
             # Override SIS defaults with malaria-specific values.
             infection_duration_years       = ss.normal(loc=200/365, scale=30/365),
             p_death                        = ss.bernoulli(p=0.0),
@@ -227,12 +232,17 @@ class MalariaHumanBase(ss.SIS):
         uninit = (self.biting_heterogeneity == 0.0) & alive
         if uninit.any():
             uids = uninit.uids
+            # ----------------------------------------------------------------------------
+            # laser-ngm has the biting_heterogeneity, but it did not implement setting it.
+            # ----------------------------------------------------------------------------
             if float(self.pars.heterogeneity_shape) > 0:
                 shape = float(self.pars.heterogeneity_shape)
                 drawn = np.random.gamma(shape=shape, scale=1.0 / shape, size=len(uids))
                 self.biting_heterogeneity[uids] = np.maximum(drawn, 1e-10)
             else:
                 self.biting_heterogeneity[uids] = 1.0
+            # ----------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------
 
             ns    = self._get_node_state()
             fracs = ns.grid.pop_fractions
@@ -251,7 +261,13 @@ class MalariaHumanBase(ss.SIS):
 
         Durations sampled from distribution (in years) are divided by dt_year
         to produce the correct step offset from the current ti.
+
+        This is also the place to determine the infectiousness, hrp2_pg, and
+        fever_F of newly infected agents.
         """
+        # ---------------------------------------
+        # laser-ngm's HumanIntraHost
+        # ---------------------------------------
         ti      = self.ti
         dt_year = self.sim.t.dt_year
         p       = self.pars
@@ -277,47 +293,43 @@ class MalariaHumanBase(ss.SIS):
           - WithinHost: replace entirely with parasite-density dynamics
         """
         super().step_state()
+        # ---------------------------------------------------------------
+        # SIS.step_state() does the following:
+        # ---------------------------------------------------------------
+        # recovered = (self.infected & (self.ti_recovered <= self.ti)).uids
+        # self.infected[recovered] = False
+        # self.susceptible[recovered] = True
+        # self.update_immunity()
+        # ---------------------------------------------------------------
+
         return
 
     def _malaria_post_step_state(self):
         """
-        Classify symptoms, request disease deaths, and sync observable states.
+        Classify symptoms and request disease deaths.
 
         Called at the end of step_state(), after disease transitions, so that
-        freshly recovered agents appear in susceptible_alive and freshly
-        infected agents appear in infected_alive.
+        freshly infected agents appear in infected_alive.
         """
-        sim               = self.sim
-        alive             = sim.people.alive
-        infected_alive    = self.infected    & alive
-        susceptible_alive = self.susceptible & alive
 
-        # Reset symptom state for agents that just recovered or were never infected.
-        self.symptom_state[susceptible_alive] = SYMPTOM_NONE
+        # Update observables (infectiousness, hrp2_pg, fever_F) based on the new disease states.
+        self._update_observables()
 
         # Classify symptoms for infected agents.
-        # Placeholder — override _update_symptom_state in subclasses.
         self._update_symptom_state()
 
         # Kill agents whose symptom state reached DISEASE_DEATH.
         # request_death is processed at the same point as natural deaths.
-        # Note: _update_symptom_state() is a no-op placeholder, so no disease
-        # deaths occur until that method is overridden in a subclass.
+        infected_alive    = self.infected & self.sim.people.alive
         symptom_deaths = (self.symptom_state == SYMPTOM_DISEASE_DEATH) & infected_alive
         if symptom_deaths.any():
-            sim.people.request_death(symptom_deaths.uids)
+            self.sim.people.request_death(symptom_deaths.uids)
+            # -------------------------------------------
+            # People.request_death() does the following:
+            # -------------------------------------------
+            # self.ti_dead[uids] = self.sim.ti
+            # -------------------------------------------
 
-        # Sync observable states to current infection status.
-        p = self.pars
-
-        self.infectiousness[infected_alive]    = float(p.default_infectiousness)
-        self.infectiousness[susceptible_alive] = 0.0
-
-        self.hrp2_pg[infected_alive]    = float(p.default_hrp2_pg)
-        self.hrp2_pg[susceptible_alive] = 0.0
-
-        self.fever_F[infected_alive]    = float(p.default_fever_F)
-        self.fever_F[susceptible_alive] = _NORMAL_BODY_TEMP_F
         return
 
     def step_die(self, uids):
@@ -368,7 +380,16 @@ class MalariaHumanBase(ss.SIS):
             if not sus_in_node.any():
                 continue
             self._eir_total_dt = eir_total_dt
+            # ----------------------------------------------------------------
+            # p_inf_bite is the starsim special Bernoulli distribution where
+            # _p_inf_bite_callable is called for each person and each person
+            # is using the equivalent of their own random number generator.
+            # ----------------------------------------------------------------
             new_uids = self.pars.p_inf_bite.filter(sus_in_node)
+
+            # ---------------------------------
+            # laser-ngm's m2h_has_new_infection
+            # ---------------------------------
             all_new_uids.extend(new_uids)
 
         if all_new_uids:
@@ -379,6 +400,9 @@ class MalariaHumanBase(ss.SIS):
 
     # ------------------------------------------------------------------
     # Transmission — human → mosquito interface
+    # ------------------------------------------------------------------
+    # laser-ngm's HumanToMosquitoTransmission, but it doesn't have
+    # the prob_mosquito_infected_on_bite multiplier.
     # ------------------------------------------------------------------
 
     def get_p_inf_mosquito_indoor(self, sim):
@@ -417,7 +441,10 @@ class MalariaHumanBase(ss.SIS):
 
         _eir_total_dt is set in step() immediately before filter() is called.
         """
-        #print(self._eir_total_dt, self.pars.prob_human_infected_on_bite, self.rel_biting_rate[uids])
+        # ----------------------------------------------------------------
+        # laser-ngm has this too, but rel_biting_rate was not implemented.
+        # laser-ngm has m2h_p_infection_scale which is sort of like this
+        # ----------------------------------------------------------------
         p = (self._eir_total_dt
              * self.pars.prob_human_infected_on_bite
              * self.rel_biting_rate[uids])
@@ -437,6 +464,9 @@ class MalariaHumanBase(ss.SIS):
 
         Subclasses with intermediate infectiousness values work automatically.
         """
+        # ------------------------------------------------
+        # Found in laser-ngm - HumanToMosquitoTransmission
+        # ------------------------------------------------
         alive = self.sim.people.alive
         n_alive = alive.sum()
         if n_alive == 0:
@@ -453,12 +483,14 @@ class MalariaHumanBase(ss.SIS):
         rel_biting_rate[i] = biting_heterogeneity[i] × age_factor(age[i]),
         scaled so that mean(rel_biting_rate[alive]) = 1.
         """
+        # ----------------------------------------------------------------
+        # laser-ngm did not implement this
+        # ----------------------------------------------------------------
         alive_uids = self.sim.people.alive.uids
         if len(alive_uids) == 0:
             return
 
         raw = np.array(self.biting_heterogeneity[alive_uids], dtype=float)
-        #print(raw)
 
         p = self.pars
         if p.age_biting_ages is not None and p.age_biting_values is not None:
@@ -476,11 +508,36 @@ class MalariaHumanBase(ss.SIS):
         self.rel_biting_rate[alive_uids] = raw
         return
 
+    def _update_observables(self):
+        """
+        Upate things that are 'observable' on the human side,
+        like infectiousness, hrp2_pg, and fever_F.  Infectiousness
+        is observable to mosquitoes; hrp2_pg, fever_F, and symptom_state are
+        observable to the human immune system and to clinical surveillance.
+        """
+        infected_alive    = self.infected    & self.sim.people.alive
+        susceptible_alive = self.susceptible & self.sim.people.alive
+
+        # Determine observables so that _update_symptom_state() can
+        # classify symptoms for newly infected agents.
+        p = self.pars
+
+        self.infectiousness[infected_alive]    = float(p.default_infectiousness)
+        self.infectiousness[susceptible_alive] = 0.0
+
+        self.hrp2_pg[infected_alive]    = float(p.default_hrp2_pg)
+        self.hrp2_pg[susceptible_alive] = 0.0
+
+        self.fever_F[infected_alive]    = float(p.default_fever_F)
+        self.fever_F[susceptible_alive] = _NORMAL_BODY_TEMP_F
+
+        return
+
     def _update_symptom_state(self):
         """
         Classify symptom severity for currently infected agents.
 
-        Placeholder — currently a no-op. Override in subclasses to implement
+        Placeholder — Override in subclasses to implement
         clinical and severity classification based on parasite density, immune
         status, or age. Set self.symptom_state[uids] to the appropriate code:
 
@@ -491,6 +548,42 @@ class MalariaHumanBase(ss.SIS):
         Susceptible agents are already reset to SYMPTOM_NONE before this
         method is called.
         """
+        # ---------------------------------------
+        # laser-ngm's HumanSymptoms
+        # ---------------------------------------
+        # Reset symptom state for agents that just recovered or were never infected.
+        susceptible_alive = self.susceptible & self.sim.people.alive
+        self.symptom_state[susceptible_alive] = SYMPTOM_NONE
+
+        return
+
+    def _write_node_state(self, ns):
+        """
+        Write per-node human state to NodeState for the mosquito connector.
+
+        Computes n_humans and biting-rate-weighted mean infectiousness for
+        each node.  Indoor and outdoor p_inf are set equal (no indoor-specific
+        interventions yet).
+        """
+        # ---------------------------------------
+        # laser-ngm's HumanToMosquitoTransmission
+        # ---------------------------------------
+        alive = self.sim.people.alive
+        c     = float(self.pars.prob_mosquito_infected_on_bite)
+        for nid in range(ns.grid.n_nodes):
+            alive_in_node = alive & (self.node_id == nid)
+            n             = int(alive_in_node.sum())
+            ns.n_humans[nid] = n
+            if n == 0:
+                ns.p_inf_indoor[nid]  = 0.0
+                ns.p_inf_outdoor[nid] = 0.0
+                continue
+            uids = alive_in_node.uids
+            w    = np.array(self.rel_biting_rate[uids], dtype=float)
+            inf  = np.array(self.infectiousness[uids],  dtype=float)
+            p    = float((w * inf).sum()) / n * c
+            ns.p_inf_indoor[nid]  = p
+            ns.p_inf_outdoor[nid] = p
         return
 
     def _get_node_state(self):
@@ -513,29 +606,3 @@ class MalariaHumanBase(ss.SIS):
                     'NodeState as the first connector manually.'
                 )
         return self._ns_cache
-
-    def _write_node_state(self, ns):
-        """
-        Write per-node human state to NodeState for the mosquito connector.
-
-        Computes n_humans and biting-rate-weighted mean infectiousness for
-        each node.  Indoor and outdoor p_inf are set equal (no indoor-specific
-        interventions yet).
-        """
-        alive = self.sim.people.alive
-        c     = float(self.pars.prob_mosquito_infected_on_bite)
-        for nid in range(ns.grid.n_nodes):
-            alive_in_node = alive & (self.node_id == nid)
-            n             = int(alive_in_node.sum())
-            ns.n_humans[nid] = n
-            if n == 0:
-                ns.p_inf_indoor[nid]  = 0.0
-                ns.p_inf_outdoor[nid] = 0.0
-                continue
-            uids = alive_in_node.uids
-            w    = np.array(self.rel_biting_rate[uids], dtype=float)
-            inf  = np.array(self.infectiousness[uids],  dtype=float)
-            p    = float((w * inf).sum()) / n * c
-            ns.p_inf_indoor[nid]  = p
-            ns.p_inf_outdoor[nid] = p
-        return

@@ -142,6 +142,15 @@ class MalariaHumanWithinHost(MalariaHumanBase):
     # ------------------------------------------------------------------
     # Symptom classification (override)
     # ------------------------------------------------------------------
+    def _update_observables(self):
+        """
+        Determine infeciousness from gametocyte density, calcualte hrp2_pg,
+        and determine fever from parasite density and immune response.
+        _update_system_state() should determine symptom_state from these
+        observables.
+        """
+        super()._update_observables()
+        return
 
     def _update_symptom_state(self):
         """Classify symptoms from parasite density (placeholder thresholds)."""
