@@ -34,13 +34,15 @@ make_sim
 Interface contract
 ------------------
 The human and mosquito modules are fully decoupled — neither imports the
-other. They discover each other at runtime by duck-typing:
+other. They communicate each timestep through a shared ``NodeState`` object,
+which both modules discover at runtime by searching for the ``_is_node_state``
+duck-type marker.
 
-    Mosquito → Human  :  get_eir_indoor(sim), get_eir_outdoor(sim)
-    Human   → Mosquito:  get_p_inf_mosquito_indoor(sim), get_p_inf_mosquito_outdoor(sim)
-
-Any user-defined module that implements the appropriate pair of methods will
-work as a drop-in replacement for either side.
+    Mosquito → Human  :  ``eir_indoor`` & ``eir_outdoor``
+    Human   → Mosquito:  ``p_inf_indoor`` & ``p_inf_outdoor``
+    
+Any user-defined module that reads/writes the NodeState fields will work as
+a drop-in replacement for either side.
 
 Quick start
 -----------

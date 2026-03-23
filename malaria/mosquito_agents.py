@@ -8,16 +8,12 @@ from the human People object to avoid mixing species.
 
 Decoupling from the human model
 --------------------------------
-This module discovers the human disease module at runtime by duck-typing —
-it searches sim.modules for any object that implements:
-
-    get_p_inf_mosquito_indoor(sim)   -> float
-    get_p_inf_mosquito_outdoor(sim)  -> float
-
-Any human model (current or future) that exposes these two methods will work
-without any changes to this module. Similarly, the human model discovers this
-module by searching for get_eir_indoor(sim), so neither module imports or
-directly references the other.
+This module is fully decoupled from the human disease module. Both sides
+communicate through a shared ``NodeState`` object discovered at runtime via
+the ``_is_node_state`` duck-type marker. The human module writes
+``p_inf_indoor`` / ``p_inf_outdoor`` / ``n_humans`` to NodeState each
+timestep; this module reads those fields and writes back ``eir_indoor`` /
+``eir_outdoor``.
 
 Population dynamics
 -------------------
@@ -41,12 +37,12 @@ Human → mosquito transmission
 ------------------------------
 Each susceptible mosquito is assigned indoors or outdoors (Bernoulli with
 p = f_indoor), bites with probability bites_per_female_per_day * dt_days, and
-if it bites becomes exposed with probability from the human module:
+if it bites becomes exposed with probability read from NodeState:
 
-    P(exposed | indoors)  = get_p_inf_mosquito_indoor()   = I_h * c
-    P(exposed | outdoors) = get_p_inf_mosquito_outdoor()  = I_h * c
+    P(exposed | indoors)  = NodeState.p_inf_indoor   = I_h * c
+    P(exposed | outdoors) = NodeState.p_inf_outdoor  = I_h * c
 
-Both return the same value now and will differ once interventions are added.
+Both are equal in the base model and will differ once interventions are added.
 
 Exposed → infectious transition
 ---------------------------------
@@ -54,9 +50,8 @@ Scheduled at ti_exposed + eip_days / dt_days (EIP in timestep units).
 
 Mosquito → human transmission (EIR)
 -------------------------------------
-Exposes the same get_eir_indoor / get_eir_outdoor interface as
-MosqitoesEirOnly, so swapping between modules requires no changes to the
-human model.
+Per-node EIR values are written to NodeState (``eir_indoor``,
+``eir_outdoor``) at the end of each step for the human module to read.
 """
 
 import numpy as np
@@ -85,8 +80,7 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
     object.
 
     This module is decoupled from any specific human disease model. It
-    discovers the human module at runtime by searching for the interface
-    methods get_p_inf_mosquito_indoor() and get_p_inf_mosquito_outdoor().
+    communicates with the human module through a shared NodeState object.
 
     Parameters
     ----------
@@ -160,48 +154,6 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         self._initialized = False
         self._ns_cache    = None
         return
-
-    # ------------------------------------------------------------------
-    # Interface required by the human model
-    # ------------------------------------------------------------------
-
-    def get_eir(self, sim):
-        """
-        Total per-timestep EIR (indoor + outdoor).
-
-        Returns
-        -------
-        float
-            Expected infectious bites per person this timestep.
-        """
-        if not self._initialized:
-            return 0.0
-        n_humans = sim.people.alive.sum()
-        if n_humans == 0:
-            return 0.0
-        dt_days = sim.t.dt_year * DAYS_PER_YEAR
-        n_inf   = float((self.alive & self.infectious).sum())
-        return n_inf * self.pars.bites_per_female_per_day * dt_days / float(n_humans)
-
-    def get_eir_indoor(self, sim):
-        """
-        Indoor per-timestep EIR — the component affected by ITNs and IRS.
-
-        Returns
-        -------
-        float
-        """
-        return self.get_eir(sim) * self.pars.f_indoor
-
-    def get_eir_outdoor(self, sim):
-        """
-        Outdoor per-timestep EIR — unaffected by ITNs and IRS.
-
-        Returns
-        -------
-        float
-        """
-        return self.get_eir(sim) * (1.0 - self.pars.f_indoor)
 
     # ------------------------------------------------------------------
     # Starsim module lifecycle

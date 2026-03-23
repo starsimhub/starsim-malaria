@@ -399,35 +399,6 @@ class MalariaHumanBase(ss.SIS):
         return
 
     # ------------------------------------------------------------------
-    # Transmission — human → mosquito interface
-    # ------------------------------------------------------------------
-    # laser-ngm's HumanToMosquitoTransmission, but it doesn't have
-    # the prob_mosquito_infected_on_bite multiplier.
-    # ------------------------------------------------------------------
-
-    def get_p_inf_mosquito_indoor(self, sim):
-        """
-        Probability that a susceptible mosquito biting indoors becomes exposed.
-
-        Computed as the biting-rate-weighted mean infectiousness of all agents
-        multiplied by prob_mosquito_infected_on_bite. infectiousness is 0 for
-        susceptible agents, so only infectious agents contribute.
-
-        Returns the same value as get_p_inf_mosquito_outdoor() until
-        interventions that selectively protect indoor exposure are added.
-        """
-        return self._weighted_infectiousness() * self.pars.prob_mosquito_infected_on_bite
-
-    def get_p_inf_mosquito_outdoor(self, sim):
-        """
-        Probability that a susceptible mosquito biting outdoors becomes exposed.
-
-        Identical to get_p_inf_mosquito_indoor() in the base model. Will differ
-        once indoor-specific interventions (ITNs, IRS) are added.
-        """
-        return self._weighted_infectiousness() * self.pars.prob_mosquito_infected_on_bite
-
-    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -449,32 +420,6 @@ class MalariaHumanBase(ss.SIS):
              * self.pars.prob_human_infected_on_bite
              * self.rel_biting_rate[uids])
         return np.clip(p, 0.0, 1.0)
-
-    def _weighted_infectiousness(self):
-        """
-        Return biting-rate-weighted mean infectiousness across all alive agents.
-
-        A mosquito's bite target is proportional to rel_biting_rate[i]. The
-        expected probability of exposure per bite is:
-
-            sum(rel_biting_rate[i] * infectiousness[i]) / n_alive
-
-        Because rel_biting_rate is normalized to mean 1 over alive agents,
-        n_alive = sum(rel_biting_rate[alive]).
-
-        Subclasses with intermediate infectiousness values work automatically.
-        """
-        # ------------------------------------------------
-        # Found in laser-ngm - HumanToMosquitoTransmission
-        # ------------------------------------------------
-        alive = self.sim.people.alive
-        n_alive = alive.sum()
-        if n_alive == 0:
-            return 0.0
-        numerator = float(
-            (self.rel_biting_rate[alive] * self.infectiousness[alive]).sum()
-        )
-        return numerator / float(n_alive)
 
     def _update_rel_biting_rate(self):
         """

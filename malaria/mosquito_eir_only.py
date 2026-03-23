@@ -103,61 +103,6 @@ class MosqitoesEirOnly(ss.Module):
         return
 
     # ------------------------------------------------------------------
-    # Interface required by MalariaHumanSIS
-    # ------------------------------------------------------------------
-
-    def get_eir(self, sim):
-        """
-        Return total per-timestep EIR (indoor + outdoor).
-
-        Parameters
-        ----------
-        sim : ss.Sim
-
-        Returns
-        -------
-        float
-            Total expected infectious bites per person this timestep.
-        """
-        return self._annual_rate(sim) * sim.t.dt_year
-
-    def get_eir_indoor(self, sim):
-        """
-        Return indoor per-timestep EIR.
-
-        This is the component affected by ITNs and IRS. Future intervention
-        modules will reduce this value before MalariaHumanSIS combines it with
-        the outdoor component.
-
-        Parameters
-        ----------
-        sim : ss.Sim
-
-        Returns
-        -------
-        float
-            Expected indoor infectious bites per person this timestep.
-        """
-        return self.get_eir(sim) * self.pars.f_indoor
-
-    def get_eir_outdoor(self, sim):
-        """
-        Return outdoor per-timestep EIR.
-
-        This component is unaffected by ITNs and IRS.
-
-        Parameters
-        ----------
-        sim : ss.Sim
-
-        Returns
-        -------
-        float
-            Expected outdoor infectious bites per person this timestep.
-        """
-        return self.get_eir(sim) * (1.0 - self.pars.f_indoor)
-
-    # ------------------------------------------------------------------
     # Starsim module lifecycle
     # ------------------------------------------------------------------
 
