@@ -1,5 +1,5 @@
 """
-MosqitoesEirOnly: EIR-driven mosquito module (no mosquito agents).
+MosquitoesEirOnly: EIR-driven mosquito module (no mosquito agents).
 
 This is the simplest possible mosquito model: the Entomological Inoculation
 Rate (EIR) is supplied directly as a parameter rather than computed from an
@@ -10,7 +10,7 @@ Use this module when:
   - You are not interested in mosquito population dynamics
   - You want a fast, simple baseline before switching to MalariaMosquito
 
-To switch to the full Ross-MacDonald mosquito model, replace MosqitoesEirOnly
+To switch to the full Ross-MacDonald mosquito model, replace MosquitoesEirOnly
 with MalariaMosquito in your sim — MalariaHumanSIS will detect the change
 automatically.
 
@@ -37,11 +37,11 @@ the interpolation between December (index 11) and January (index 0) follows
 the same linear rule.
 
     # Wet-season peak in months 4-9 (May-Oct), low otherwise
-    MosqitoesEirOnly(eir=[2, 2, 5, 15, 30, 50, 50, 30, 15, 5, 2, 2])
+    MosquitoesEirOnly(eir=[2, 2, 5, 15, 30, 50, 50, 30, 15, 5, 2, 2])
 
 Pass a scalar for uniform (non-seasonal) transmission:
 
-    MosqitoesEirOnly(eir=10)
+    MosquitoesEirOnly(eir=10)
 """
 
 import numpy as np
@@ -50,7 +50,7 @@ import starsim as ss
 from .utils import interpolate_monthly
 
 
-class MosqitoesEirOnly(ss.Module):
+class MosquitoesEirOnly(ss.Module):
     """
     Fixed or seasonally-varying EIR mosquito module (no mosquito agents).
 
@@ -79,11 +79,11 @@ class MosqitoesEirOnly(ss.Module):
     --------
     Constant moderate transmission, default indoor fraction::
 
-        mos = MosqitoesEirOnly(eir=10)
+        mos = MosquitoesEirOnly(eir=10)
 
     Seasonal transmission with wet-season peak, mostly indoor biting::
 
-        mos = MosqitoesEirOnly(
+        mos = MosquitoesEirOnly(
             eir=[2, 2, 5, 15, 30, 50, 50, 30, 15, 5, 2, 2],
             f_indoor=0.85,
         )

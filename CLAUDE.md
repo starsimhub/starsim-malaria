@@ -67,7 +67,7 @@ Inherit from `MalariaHumanBase` and override:
 - `malariasim/human_base.py` — `MalariaHumanBase` (shared biting infrastructure, observable states, EIR transmission)
 - `malariasim/human_sis.py` — `MalariaHumanSIS` (thin SIS subclass)
 - `malariasim/human_seis.py` — `MalariaHumanSEIS` (adds exposed compartment with ~12-day incubation)
-- `malariasim/mosquito_eir_only.py` — `MosqitoesEirOnly` (fixed/seasonal EIR, no mosquito agents)
+- `malariasim/mosquito_eir_only.py` — `MosquitoesEirOnly` (fixed/seasonal EIR, no mosquito agents)
 - `malariasim/mosquito_agents.py` — `MosquitoesAdultFemaleAgentsOnly` (SEI agent-based mosquitoes)
 - `malariasim/node_grid.py` — `NodeGrid` (static spatial config)
 - `malariasim/node_state.py` — `NodeState` (dynamic per-node communication bus)
@@ -81,6 +81,5 @@ Core: `numpy`, `pandas`, `matplotlib`, `starsim`. Also uses `sciris` at runtime 
 
 ## Known Quirks
 
-- The class name `MosqitoesEirOnly` has a typo (missing 'u' in "Mosquitoes") — this is intentional/historical and used throughout including `__init__.py` exports.
 - `PerformanceMonitor` requires `psutil` but it is not listed in `pyproject.toml` dependencies.
 - The canonical import form is `import malariasim as ms`.

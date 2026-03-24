@@ -17,7 +17,7 @@ MalariaHumanSEIS
     Adds an explicit incubation period (~12 days) before agents become
     infectious. Drop-in replacement for MalariaHumanSIS.
 
-MosqitoesEirOnly
+MosquitoesEirOnly
     Simple mosquito module with no agents. EIR is a fixed parameter (scalar
     or monthly array with linear interpolation). Use when mosquito population
     dynamics are not needed.
@@ -80,7 +80,7 @@ import starsim as ss
 from .human_base        import MalariaHumanBase, SYMPTOM_NONE, SYMPTOM_CLINICAL, SYMPTOM_SEVERE, SYMPTOM_DISEASE_DEATH
 from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
-from .mosquito_eir_only import MosqitoesEirOnly
+from .mosquito_eir_only import MosquitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
 from .node_grid         import NodeGrid
 from .node_state        import NodeState
@@ -92,7 +92,7 @@ __all__ = [
     'MalariaHumanBase',
     'MalariaHumanSIS',
     'MalariaHumanSEIS',
-    'MosqitoesEirOnly',
+    'MosquitoesEirOnly',
     'MosquitoesAdultFemaleAgentsOnly',
     'NodeGrid',
     'NodeState',

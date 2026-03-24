@@ -11,7 +11,7 @@ import starsim as ss
 
 from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
-from .mosquito_eir_only import MosqitoesEirOnly
+from .mosquito_eir_only import MosquitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
 from .node_grid         import NodeGrid
 from .node_state        import NodeState
@@ -38,7 +38,7 @@ class Sim(ss.Sim):
         - ``'agents'``   : :class:`MosquitoesAdultFemaleAgentsOnly` — SEI
           agent-based mosquito population with seasonal emergence. This is
           the default and gives the most realistic dynamics.
-        - ``'eir_only'`` : :class:`MosqitoesEirOnly` — fixed or seasonally-
+        - ``'eir_only'`` : :class:`MosquitoesEirOnly` — fixed or seasonally-
           varying EIR with no explicit mosquito agents. Faster and simpler;
           useful for calibration runs or when mosquito dynamics are not of
           interest.
@@ -186,7 +186,7 @@ class Sim(ss.Sim):
         if mosquito == 'agents':
             mos = MosquitoesAdultFemaleAgentsOnly(pars=mosquito_pars)
         elif mosquito == 'eir_only':
-            mos = MosqitoesEirOnly(pars=mosquito_pars)
+            mos = MosquitoesEirOnly(pars=mosquito_pars)
         else:
             raise ValueError(
                 f"Unknown mosquito model '{mosquito}'. "

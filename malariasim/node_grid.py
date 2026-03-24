@@ -43,7 +43,7 @@ class NodeGrid:
         its own ``emergence`` parameter uniformly across all nodes.
 
     eir : array-like of shape (n_nodes,) or (n_nodes, 12) or None
-        Per-node EIR for MosqitoesEirOnly.
+        Per-node EIR for MosquitoesEirOnly.
 
         - Shape ``(n_nodes,)``    : constant annual EIR per node.
         - Shape ``(n_nodes, 12)`` : monthly EIR profile per node.
