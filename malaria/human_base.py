@@ -201,7 +201,7 @@ class MalariaHumanBase(ss.SIS):
         return
 
     # ------------------------------------------------------------------
-    # step_state template
+    # step_state template - Disease progression
     # ------------------------------------------------------------------
 
     def step_state(self):
@@ -249,36 +249,6 @@ class MalariaHumanBase(ss.SIS):
             self.node_id[uids] = np.random.choice(len(fracs), size=len(uids), p=fracs)
 
         self._update_rel_biting_rate()
-        return
-
-    def set_prognoses(self, uids, sources=None):
-        """
-        Move newly inoculated agents into the infectious state (SIS baseline).
-
-        Overrides ss.SIS.set_prognoses to convert dur_inf from years to
-        timestep counts. ss.SIS stores ti_recovered as an integer step index;
-        without this conversion agents recover after 1 step regardless of dt.
-
-        Durations sampled from distribution (in years) are divided by dt_year
-        to produce the correct step offset from the current ti.
-
-        This is also the place to determine the infectiousness, hrp2_pg, and
-        fever_F of newly infected agents.
-        """
-        # ---------------------------------------
-        # laser-ngm's HumanIntraHost
-        # ---------------------------------------
-        ti      = self.ti
-        dt_year = self.sim.t.dt_year
-        p       = self.pars
-
-        self.susceptible[uids] = False
-        self.infected[uids]    = True
-        self.ti_infected[uids] = ti
-        self.immunity[uids]   += float(p.imm_boost)   # no-op when imm_boost=0
-
-        dur_inf = p.dur_inf.rvs(uids) / dt_year       # years → steps
-        self.ti_recovered[uids] = ti + dur_inf
         return
 
     def _do_disease_transitions(self):
@@ -332,28 +302,8 @@ class MalariaHumanBase(ss.SIS):
 
         return
 
-    def step_die(self, uids):
-        """
-        Reset all custom per-agent states when agents die (any cause).
-
-        Subclasses that add extra states must override this and call super():
-
-            def step_die(self, uids):
-                super().step_die(uids)
-                self.my_extra_state[uids] = 0
-        """
-        super().step_die(uids)
-        self.symptom_state[uids]        = SYMPTOM_NONE
-        self.biting_heterogeneity[uids] = 0.0
-        self.rel_biting_rate[uids]      = 0.0
-        self.infectiousness[uids]       = 0.0
-        self.hrp2_pg[uids]              = 0.0
-        self.fever_F[uids]              = 0.0
-        self.ti_dead[uids]              = np.nan
-        return
-
     # ------------------------------------------------------------------
-    # Transmission — mosquito → human
+    # step() template - Transmission — mosquito → human and human → mosquito
     # ------------------------------------------------------------------
 
     def step(self):
@@ -396,6 +346,60 @@ class MalariaHumanBase(ss.SIS):
             self.set_prognoses(np.array(all_new_uids), sources=None)
 
         self._write_node_state(ns)
+        return
+
+    def set_prognoses(self, uids, sources=None):
+        """
+        Move newly inoculated agents into the infectious state (SIS baseline).
+
+        Overrides ss.SIS.set_prognoses to convert dur_inf from years to
+        timestep counts. ss.SIS stores ti_recovered as an integer step index;
+        without this conversion agents recover after 1 step regardless of dt.
+
+        Durations sampled from distribution (in years) are divided by dt_year
+        to produce the correct step offset from the current ti.
+
+        This is also the place to determine the infectiousness, hrp2_pg, and
+        fever_F of newly infected agents.
+        """
+        # ---------------------------------------
+        # laser-ngm's HumanIntraHost
+        # ---------------------------------------
+        ti      = self.ti
+        dt_year = self.sim.t.dt_year
+        p       = self.pars
+
+        self.susceptible[uids] = False
+        self.infected[uids]    = True
+        self.ti_infected[uids] = ti
+        self.immunity[uids]   += float(p.imm_boost)   # no-op when imm_boost=0
+
+        dur_inf = p.dur_inf.rvs(uids) / dt_year       # years → steps
+        self.ti_recovered[uids] = ti + dur_inf
+        return
+
+    # ------------------------------------------------------------------
+    # step_die template - clear fields for dead agents
+    # ------------------------------------------------------------------
+
+    def step_die(self, uids):
+        """
+        Reset all custom per-agent states when agents die (any cause).
+
+        Subclasses that add extra states must override this and call super():
+
+            def step_die(self, uids):
+                super().step_die(uids)
+                self.my_extra_state[uids] = 0
+        """
+        super().step_die(uids)
+        self.symptom_state[uids]        = SYMPTOM_NONE
+        self.biting_heterogeneity[uids] = 0.0
+        self.rel_biting_rate[uids]      = 0.0
+        self.infectiousness[uids]       = 0.0
+        self.hrp2_pg[uids]              = 0.0
+        self.fever_F[uids]              = 0.0
+        self.ti_dead[uids]              = np.nan
         return
 
     # ------------------------------------------------------------------

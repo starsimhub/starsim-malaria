@@ -153,14 +153,26 @@ def make_sim(
             ),
         )
     """
+
+    #-------------------------------------------------------------
+    # default time step is one day
+    # Starsim times are in years, so convert from days if needed.
+    #-------------------------------------------------------------
     if dt is None:
         dt = ss.days(1)
 
+    #-------------------------------------------------------------
+    # If nodes aren't provided, create a single-NodeGrid with
+    # the entire population.
+    #-------------------------------------------------------------
     if nodes is None:
         nodes = NodeGrid(populations=[10_000])
     n_agents = nodes.total_population
     people   = ss.People(n_agents, age_data=age_data)
 
+    #-------------------------------------------------------------
+    # Create the malaria disease module
+    #-------------------------------------------------------------
     if human == 'sis':
         human_mod = MalariaHumanSIS(pars=human_pars)
     elif human == 'seis':
@@ -171,6 +183,9 @@ def make_sim(
             f"Valid options are 'sis' or 'seis'."
         )
 
+    #-------------------------------------------------------------
+    # Create the mosquito module
+    #-------------------------------------------------------------
     if mosquito == 'agents':
         mos = MosquitoesAdultFemaleAgentsOnly(pars=mosquito_pars)
     elif mosquito == 'eir_only':
@@ -189,6 +204,6 @@ def make_sim(
         stop       = stop,
         dt         = dt,
         diseases   = human_mod,
-        connectors = [node_state, mos],
+        connectors = [node_state, mos], # notice NodeState and Mosquitoes are connectors
         **sim_kwargs,
     )

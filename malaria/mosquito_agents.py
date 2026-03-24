@@ -179,7 +179,7 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         Order of operations:
           1. Allocate arrays on the first step (once n_humans is known).
           2. Kill mosquitoes whose scheduled death time has arrived.
-          3. Birth new susceptible mosquitoes (per node from NodeState).
+          3. Birth new susceptible mosquitoes (per node from NodeGrid).
           4. Transition exposed → infectious when EIP has elapsed.
           5. Apply human → mosquito transmission (per node from NodeState).
           6. Record results and write per-node EIR to NodeState.
@@ -187,6 +187,9 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         sim = self.sim
         ns  = self._get_node_state()
 
+        # ------------------------------------------------------------------------
+        # 1. Initialize mosquito arrays on the first step, once n_humans is known.
+        # ------------------------------------------------------------------------
         if not self._initialized:
             self._init_mosquitoes(ns)
             self._initialized = True
@@ -195,12 +198,16 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         ti      = sim.ti
         dt_days = sim.t.dt_year * DAYS_PER_YEAR
 
+        # ----------
         # 2. Deaths
+        # ----------
         dying = self.alive & (self.ti_dead <= ti)
         if dying.any():
             self._kill_mosquitoes(dying)
 
+        # --------------------------------------------------
         # 3. Births — per node using n_humans from NodeState
+        # --------------------------------------------------
         for nid in range(ns.grid.n_nodes):
             n_humans_node  = int(ns.n_humans[nid])
             emergence_rate = self._emergence_rate_for_node(ns.grid, nid, sim.t.year % 1)
@@ -208,13 +215,17 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             if n_new > 0:
                 self._birth_mosquitoes(ti, dt_days, n_new, nid)
 
+        # -----------------------
         # 4. Exposed → infectious
+        # -----------------------
         newly_infectious = self.alive & self.exposed & (self.ti_infectious <= ti)
         if newly_infectious.any():
             self.exposed[newly_infectious]    = False
             self.infectious[newly_infectious] = True
 
+        # ----------------------------------------------------------
         # 5. Human → mosquito transmission — per node from NodeState
+        # ----------------------------------------------------------
         for nid in range(ns.grid.n_nodes):
             sus_idx = np.where(self.alive & self.susceptible & (self.node_id == nid))[0]
             if len(sus_idx) == 0:
@@ -233,7 +244,9 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
                 self.exposed[new_idx]       = True
                 self.ti_infectious[new_idx] = ti + eip_steps
 
+        # -----------------------------------
         # 6. Results + write EIR to NodeState
+        # -----------------------------------
         n_humans_total = int(sim.people.alive.sum())
         alive_mask     = self.alive
         n_alive        = int(alive_mask.sum())

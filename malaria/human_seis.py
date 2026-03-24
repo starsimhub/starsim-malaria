@@ -97,7 +97,39 @@ class MalariaHumanSEIS(MalariaHumanBase):
         return
 
     # ------------------------------------------------------------------
-    # Overrides
+    # step_state - Override a method called in step state()
+    # ------------------------------------------------------------------
+
+    def _do_disease_transitions(self):
+        """
+        Progress exposed → infectious, then run SIS recovery (infectious → susceptible).
+
+        Agents who have completed incubation (ti_infected has arrived) leave the
+        exposed compartment and become infectious. The parent ss.SIS.step_state
+        then handles the infectious → susceptible recovery for the full infectious
+        population.
+
+        Note on naming: in this model "infected" (the BoolState) means *infectious*
+        — able to transmit to mosquitoes. An agent is biologically infected from the
+        moment of inoculation; it is *infectious* only after the incubation period
+        represented by the exposed compartment.
+        """
+        ti = self.ti
+
+        # Exposed (incubating) → infectious: agents who have completed incubation
+        # and are now able to transmit to mosquitoes.
+        becoming_infectious = self.exposed & (self.ti_infected <= ti)
+        if becoming_infectious.any():
+            uids = becoming_infectious.uids
+            self.exposed[uids]  = False
+            self.infected[uids] = True
+
+        # SIS recovery: infectious → susceptible (via ss.SIS.step_state).
+        super()._do_disease_transitions()
+        return
+
+    # ------------------------------------------------------------------
+    # step - Override a method called in step()
     # ------------------------------------------------------------------
 
     def set_prognoses(self, uids, sources=None):
@@ -136,34 +168,9 @@ class MalariaHumanSEIS(MalariaHumanBase):
 
         return
 
-    def _do_disease_transitions(self):
-        """
-        Progress exposed → infectious, then run SIS recovery (infectious → susceptible).
-
-        Agents who have completed incubation (ti_infected has arrived) leave the
-        exposed compartment and become infectious. The parent ss.SIS.step_state
-        then handles the infectious → susceptible recovery for the full infectious
-        population.
-
-        Note on naming: in this model "infected" (the BoolState) means *infectious*
-        — able to transmit to mosquitoes. An agent is biologically infected from the
-        moment of inoculation; it is *infectious* only after the incubation period
-        represented by the exposed compartment.
-        """
-        ti = self.ti
-
-        # Exposed (incubating) → infectious: agents who have completed incubation
-        # and are now able to transmit to mosquitoes.
-        becoming_infectious = self.exposed & (self.ti_infected <= ti)
-        if becoming_infectious.any():
-            uids = becoming_infectious.uids
-            self.exposed[uids]  = False
-            self.infected[uids] = True
-
-        # SIS recovery: infectious → susceptible (via ss.SIS.step_state).
-        super()._do_disease_transitions()
-        return
-
+    # ------------------------------------------------------------------
+    # step_die - Override step_die()
+    # ------------------------------------------------------------------
     def step_die(self, uids):
         """Reset exposed state for dying agents, then call base cleanup."""
         super().step_die(uids)

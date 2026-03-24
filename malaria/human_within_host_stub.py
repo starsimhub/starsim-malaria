@@ -78,25 +78,7 @@ class MalariaHumanWithinHost(MalariaHumanBase):
         return
 
     # ------------------------------------------------------------------
-    # Infection entry point
-    # ------------------------------------------------------------------
-
-    def set_prognoses(self, uids, sources=None):
-        """
-        Seed within-host state for newly inoculated agents.
-
-        Unlike SIS/SEIS, we do not schedule ti_recovered here — recovery is
-        determined dynamically by _check_recovery() each step.
-        """
-        self.susceptible[uids]      = False
-        self.infected[uids]         = True
-        self.parasite_density[uids] = float(self.pars.inoculation_parasites)
-        # gametocyte_density and immune_response are left at their current
-        # values (0 for naïve agents; >0 if previously exposed).
-        return
-
-    # ------------------------------------------------------------------
-    # Disease transitions (Template Method override)
+    # step_state() - Overide methods called in step_state()
     # ------------------------------------------------------------------
 
     def _do_disease_transitions(self):
@@ -119,10 +101,6 @@ class MalariaHumanWithinHost(MalariaHumanBase):
         self._check_recovery(infected_uids)
         return
 
-    # ------------------------------------------------------------------
-    # Observable state sync (override to use gametocyte_density)
-    # ------------------------------------------------------------------
-
     def _malaria_post_step_state(self):
         """
         Same as base, but derives infectiousness from gametocyte density
@@ -139,9 +117,6 @@ class MalariaHumanWithinHost(MalariaHumanBase):
             self.infectiousness[uids] = self._gametocyte_to_infectiousness(uids)
         return
 
-    # ------------------------------------------------------------------
-    # Symptom classification (override)
-    # ------------------------------------------------------------------
     def _update_observables(self):
         """
         Determine infeciousness from gametocyte density, calcualte hrp2_pg,
@@ -175,7 +150,25 @@ class MalariaHumanWithinHost(MalariaHumanBase):
         return
 
     # ------------------------------------------------------------------
-    # Death cleanup
+    # step - Override set_prognoses() that is called in step()
+    # ------------------------------------------------------------------
+
+    def set_prognoses(self, uids, sources=None):
+        """
+        Seed within-host state for newly inoculated agents.
+
+        Unlike SIS/SEIS, we do not schedule ti_recovered here — recovery is
+        determined dynamically by _check_recovery() each step.
+        """
+        self.susceptible[uids]      = False
+        self.infected[uids]         = True
+        self.parasite_density[uids] = float(self.pars.inoculation_parasites)
+        # gametocyte_density and immune_response are left at their current
+        # values (0 for naïve agents; >0 if previously exposed).
+        return
+
+    # ------------------------------------------------------------------
+    # step_die - Override step_die() to clear within-host states for dead agents
     # ------------------------------------------------------------------
 
     def step_die(self, uids):
@@ -188,7 +181,7 @@ class MalariaHumanWithinHost(MalariaHumanBase):
         return
 
     # ------------------------------------------------------------------
-    # Within-host placeholder methods — replace with real biology
+    # Internal Helpers
     # ------------------------------------------------------------------
 
     def _update_parasite_density(self, uids):
