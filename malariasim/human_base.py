@@ -313,7 +313,7 @@ class MalariaHumanBase(ss.SIS):
         Reads per-node EIR from NodeState (written by the mosquito connector
         in the previous timestep) and applies M→H transmission separately for
         susceptibles in each node.  NodeState is always present — a 1-node
-        grid is created by make_sim() when no explicit spatial structure is
+        grid is created by Sim() when no explicit spatial structure is
         configured.
 
         set_prognoses() is called for newly exposed agents. Override
@@ -540,7 +540,7 @@ class MalariaHumanBase(ss.SIS):
         Return the NodeState connector, raising RuntimeError if not found.
 
         Searches sim.modules on the first call and caches the result.
-        NodeState is always expected — make_sim() creates a 1-node
+        NodeState is always expected — Sim() creates a 1-node
         NodeGrid/NodeState when no explicit spatial structure is configured.
         """
         if self._ns_cache is None:
@@ -551,7 +551,7 @@ class MalariaHumanBase(ss.SIS):
             if self._ns_cache is None:
                 raise RuntimeError(
                     f'{type(self).__name__}._get_node_state(): no NodeState '
-                    'module found in sim.modules.  Use make_sim() or add '
+                    'module found in sim.modules.  Use ms.Sim() or add '
                     'NodeState as the first connector manually.'
                 )
         return self._ns_cache

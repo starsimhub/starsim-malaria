@@ -1,8 +1,8 @@
-# starsim-ngm
+# Starsim-NGM
 
-This is a StarSim implementation of a malaria model framework.
+This is a Starsim implementation of a malaria model framework.
 
 # Running code
-1) Create a virtual environment
-2) pip install starsim
-3) python run_malaria.py
+1) Create a virtual environment (optional)
+2) Install: `pip install -e .`
+3) Run: `python run_malaria.py`

@@ -47,6 +47,8 @@ Pass a scalar for uniform (non-seasonal) transmission:
 import numpy as np
 import starsim as ss
 
+from .utils import interpolate_monthly
+
 
 class MosqitoesEirOnly(ss.Module):
     """
@@ -130,7 +132,7 @@ class MosqitoesEirOnly(ss.Module):
         for nid in range(grid.n_nodes):
             # Per-node EIR from NodeGrid if specified, else module-level parameter.
             if grid.eir is not None:
-                node_eir = grid.eir[nid] if grid.eir.ndim == 1 else self._interpolate_profile(grid.eir[nid], sim.t.year % 1)
+                node_eir = grid.eir[nid] if grid.eir.ndim == 1 else interpolate_monthly(grid.eir[nid], sim.t.year % 1)
             else:
                 node_eir = annual
             f = grid.f_indoor[nid] if grid.f_indoor is not None else self.pars.f_indoor
@@ -152,36 +154,7 @@ class MosqitoesEirOnly(ss.Module):
         eir = self.pars.eir
         if np.isscalar(eir):
             return float(eir)
-        return self._interpolate(sim.t.year % 1)
-
-    def _interpolate(self, t):
-        """
-        Linearly interpolate the monthly EIR profile at fractional year t.
-
-        Monthly values are treated as anchors at the start of each month:
-          month 0 (Jan) → t = 0/12
-          month 1 (Feb) → t = 1/12
-          ...
-          month 11 (Dec) → t = 11/12
-
-        The January value is appended at t = 1.0 to close the [0, 1] domain
-        and allow smooth wrapping from December back to January.
-
-        Parameters
-        ----------
-        t : float
-            Fractional position within the current year, in [0, 1).
-
-        Returns
-        -------
-        float
-            Interpolated annualized EIR at time t.
-        """
-        eir      = self.pars.eir                   # shape (12,)
-        x_months = np.arange(12) / 12              # [0/12, 1/12, ..., 11/12]
-        x_wrap   = np.append(x_months, 1.0)        # add year-end anchor
-        y_wrap   = np.append(eir, eir[0])          # wrap Dec → Jan
-        return float(np.interp(t, x_wrap, y_wrap))
+        return interpolate_monthly(self.pars.eir, sim.t.year % 1)
 
     def _validate(self):
         """Raise informative errors for malformed parameters."""
@@ -215,13 +188,6 @@ class MosqitoesEirOnly(ss.Module):
             if self._ns_cache is None:
                 raise RuntimeError(
                     f'{type(self).__name__}._get_node_state(): no NodeState '
-                    'module found. Use make_sim() or add NodeState manually.'
+                    'module found. Use ms.Sim() or add NodeState manually.'
                 )
         return self._ns_cache
-
-    def _interpolate_profile(self, profile, t):
-        """Interpolate a 12-element monthly profile at fractional year t."""
-        x_months = np.arange(12) / 12
-        x_wrap   = np.append(x_months, 1.0)
-        y_wrap   = np.append(profile, profile[0])
-        return float(np.interp(t, x_wrap, y_wrap))

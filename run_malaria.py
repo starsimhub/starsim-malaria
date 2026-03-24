@@ -8,30 +8,26 @@ Usage
 -----
     python run_malaria.py
 """
-
-import pandas as pd
+import sciris as sc
 import starsim as ss
-
-from malaria import make_sim, NodeGrid
-from performance import PerformanceMonitor
-from results import AgeBinPopulation, plot_all
+import malariasim as ms
 
 
 # ------------------------------------------------------------------
 # Demographics: age pyramid + balanced birth/death rates
 # ------------------------------------------------------------------
 
-AGE_BIN_EDGES     = [0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,100]
-AGE_BIN_FRACTIONS = [0.13,0.12,0.11,0.10,0.09,0.08,0.07,0.06,0.05,0.04,0.035,0.03,0.025,0.02,0.015,0.01,0.005]
+AGE_BIN_EDGES     = [0,    5,    10,   15,   20,   25,   30,   35,   40,   45,   50,    55,   60,    65,   70,    75,   80,   100]
+AGE_BIN_FRACTIONS = [0.13, 0.12, 0.11, 0.10, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005]
 
 # Expand bin fractions to per-year weights for ss.People age_data
-_ages, _vals = [], []
+ages, vals = [], []
 for lo, hi, frac in zip(AGE_BIN_EDGES[:-1], AGE_BIN_EDGES[1:], AGE_BIN_FRACTIONS):
     per_year = frac / (hi - lo)
     for age in range(lo, hi):
-        _ages.append(age)
-        _vals.append(per_year)
-AGE_DATA = pd.DataFrame({'age': _ages, 'value': _vals})
+        ages.append(age)
+        vals.append(per_year)
+AGE_DATA = sc.dataframe({'age': ages, 'value': vals})
 
 DEMOGRAPHICS = [
     ss.Births(birth_rate=ss.peryear(20)),
@@ -52,7 +48,7 @@ STOP  = 2002
 # Node 2 (Rural):      2 000 people — lower transmission, more outdoor biting
 # ------------------------------------------------------------------
 
-THREE_NODES = NodeGrid(
+THREE_NODES = ms.NodeGrid(
     populations = [5_000, 3_000, 2_000],
     labels      = ['Urban', 'Peri-urban', 'Rural'],
 
@@ -81,36 +77,63 @@ SCENARIOS = [
     dict(label='SEIS + agents',   human='seis', mosquito='agents',   nodes=THREE_NODES),
 ]
 
+
 # ------------------------------------------------------------------
 # Build and run
 # ------------------------------------------------------------------
 
-monitor = PerformanceMonitor()
-sims    = []
-
-for sc in SCENARIOS:
-    label = sc.pop('label')
-    sim = make_sim(
-        age_data     = AGE_DATA,
-        start        = START,
-        stop         = STOP,
-        dt           = ss.days(1),
-        label        = label,
-        rand_seed    = 0,
-        demographics = DEMOGRAPHICS,
-        analyzers    = AgeBinPopulation(),
-        **sc,
-    )
-    print(f'Running: {label}')
-    monitor.start()
-
-    sim.run()
+def run_malaria(do_monitor=False, do_plot=True, do_save=False):
+    """Run all scenarios and optionally plot results.
     
-    monitor.stop(sim)
-    sims.append(sim)
+    Args:
+        do_monitor (bool): whether to run the performance monitor (requires running serially)
+        do_plot (bool): Plot results
+        do_save (bool): If do_plot=True, also save figures    
+    """
 
-# ------------------------------------------------------------------
-# Results
-# ------------------------------------------------------------------
+    # Build sims
+    sims    = []
+    for scen in SCENARIOS:
+        scen = scen.copy()  # copy so SCENARIOS stays intact
+        label = scen.pop('label')
+        sim = ms.Sim(
+            age_data     = AGE_DATA,
+            start        = START,
+            stop         = STOP,
+            dt           = ss.days(1),
+            label        = label,
+            rand_seed    = 0,
+            demographics = DEMOGRAPHICS,
+            analyzers    = ms.AgeBinPopulation(),
+            **scen,
+        )
+        sims.append(sim)
 
-plot_all(sims, monitor)
+    # Create a performance monitor
+    monitor = ms.PerformanceMonitor() if do_monitor else None
+
+    # Combine into a MultiSim
+    msim = ms.MalariaMultiSim(sims, monitor=monitor)
+    
+    # Run sims
+    if do_monitor: # If monitoring, run the sims individually
+        for sim in msim.sims:
+            print(f'Running: {label}')
+            monitor.start()
+            sim.run()
+            monitor.stop(sim)
+    
+    else: # Otherwise, run all the sims in parallel (no monitoring)
+        msim.run() 
+    
+    # Optionally plot results
+    if do_plot:
+        msim.plot_all(do_save=do_save)
+
+    return msim
+
+
+if __name__ == '__main__':
+    T = sc.timer()
+    msim = run_malaria()
+    T.toc()

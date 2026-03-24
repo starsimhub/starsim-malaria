@@ -57,6 +57,8 @@ Per-node EIR values are written to NodeState (``eir_indoor``,
 import numpy as np
 import starsim as ss
 
+from .utils import interpolate_monthly
+
 DAYS_PER_YEAR = 365.25
 
 # Default monthly emergence profile: seasonal with a wet-season peak.
@@ -380,10 +382,7 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             profile = grid.emergence[nid]
         else:
             profile = self.pars.emergence
-        x_months = np.arange(12) / 12
-        x_wrap   = np.append(x_months, 1.0)
-        y_wrap   = np.append(profile, profile[0])
-        return float(np.interp(t, x_wrap, y_wrap))
+        return interpolate_monthly(profile, t)
 
     def _get_node_state(self):
         """Return NodeState, raising RuntimeError if not found."""
@@ -395,7 +394,7 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             if self._ns_cache is None:
                 raise RuntimeError(
                     f'{type(self).__name__}._get_node_state(): no NodeState '
-                    'module found. Use make_sim() or add NodeState manually.'
+                    'module found. Use ms.Sim() or add NodeState manually.'
                 )
         return self._ns_cache
 

@@ -16,7 +16,7 @@ NOTE: This file is a design stub. It is not imported by __init__.py and is
 not part of the active simulation framework. Integrate by:
   1. Filling in the placeholder methods with real within-host biology.
   2. Importing MalariaHumanWithinHost from this file in __init__.py.
-  3. Adding 'within_host' as an option in make_sim().
+  3. Adding 'within_host' as an option in Sim().
 """
 
 import numpy as np

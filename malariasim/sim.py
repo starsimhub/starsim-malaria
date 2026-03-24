@@ -1,10 +1,10 @@
 """
-make_sim: convenience factory for assembling a malaria simulation.
+Sim: malaria simulation class.
 
-This module provides a single function that wires together a chosen human
-disease module and a chosen mosquito module into a ready-to-run ss.Sim. It is
-intentionally thin — all real logic lives in the individual modules. Users who
-need more control should construct the sim directly.
+This module provides a ``Sim`` subclass of ``ss.Sim`` that wires together a
+chosen human disease module and a chosen mosquito module into a ready-to-run
+simulation. It is intentionally thin — all real logic lives in the individual
+modules.
 """
 
 import starsim as ss
@@ -17,18 +17,7 @@ from .node_grid         import NodeGrid
 from .node_state        import NodeState
 
 
-def make_sim(
-    human          = 'sis',
-    mosquito       = 'agents',
-    age_data       = None,
-    start          = 2000,
-    stop           = 2010,
-    dt             = None,
-    human_pars     = None,
-    mosquito_pars  = None,
-    nodes          = None,
-    **sim_kwargs,
-):
+class Sim(ss.Sim):
     """
     Create a Starsim malaria simulation.
 
@@ -103,23 +92,18 @@ def make_sim(
         Any additional keyword arguments are passed directly to ``ss.Sim``
         (e.g. ``rand_seed``, ``verbose``, ``label``).
 
-    Returns
-    -------
-    ss.Sim
-        An initialised-but-not-yet-run simulation. Call ``.run()`` to execute.
-
     Examples
     --------
     Quickstart with defaults (SIS human, agent mosquitoes)::
 
-        from malaria import make_sim
-        sim = make_sim()
+        import malariasim as ms
+        sim = ms.Sim()
         sim.run()
         sim.plot()
 
     SEIS human model with EIR-only mosquitoes::
 
-        sim = make_sim(
+        sim = ms.Sim(
             human='seis',
             mosquito='eir_only',
             mosquito_pars=dict(eir=[2, 2, 5, 15, 30, 50, 50, 30, 15, 5, 2, 2]),
@@ -128,18 +112,18 @@ def make_sim(
     SEIS with a shorter incubation period::
 
         import starsim as ss
-        sim = make_sim(
+        sim = ms.Sim(
             human='seis',
             human_pars=dict(dur_exp=ss.normal(loc=10/365, scale=1/365)),
         )
 
     Agent-based mosquitoes, weekly timestep for speed::
 
-        sim = make_sim(mosquito='agents', dt=ss.days(7), n_agents=5_000)
+        sim = ms.Sim(mosquito='agents', dt=ss.days(7), n_agents=5_000)
 
     High-transmission site, 5-year run::
 
-        sim = make_sim(
+        sim = ms.Sim(
             mosquito='agents',
             n_agents=20_000,
             start=2010,
@@ -154,56 +138,69 @@ def make_sim(
         )
     """
 
-    #-------------------------------------------------------------
-    # default time step is one day
-    # Starsim times are in years, so convert from days if needed.
-    #-------------------------------------------------------------
-    if dt is None:
-        dt = ss.days(1)
-
-    #-------------------------------------------------------------
-    # If nodes aren't provided, create a single-NodeGrid with
-    # the entire population.
-    #-------------------------------------------------------------
-    if nodes is None:
-        nodes = NodeGrid(populations=[10_000])
-    n_agents = nodes.total_population
-    people   = ss.People(n_agents, age_data=age_data)
-
-    #-------------------------------------------------------------
-    # Create the malaria disease module
-    #-------------------------------------------------------------
-    if human == 'sis':
-        human_mod = MalariaHumanSIS(pars=human_pars)
-    elif human == 'seis':
-        human_mod = MalariaHumanSEIS(pars=human_pars)
-    else:
-        raise ValueError(
-            f"Unknown human model '{human}'. "
-            f"Valid options are 'sis' or 'seis'."
-        )
-
-    #-------------------------------------------------------------
-    # Create the mosquito module
-    #-------------------------------------------------------------
-    if mosquito == 'agents':
-        mos = MosquitoesAdultFemaleAgentsOnly(pars=mosquito_pars)
-    elif mosquito == 'eir_only':
-        mos = MosqitoesEirOnly(pars=mosquito_pars)
-    else:
-        raise ValueError(
-            f"Unknown mosquito model '{mosquito}'. "
-            f"Valid options are 'agents' or 'eir_only'."
-        )
-
-    node_state = NodeState(nodes)
-
-    return ss.Sim(
-        people     = people,
-        start      = start,
-        stop       = stop,
-        dt         = dt,
-        diseases   = human_mod,
-        connectors = [node_state, mos], # notice NodeState and Mosquitoes are connectors
+    def __init__(
+        self,
+        human          = 'sis',
+        mosquito       = 'agents',
+        age_data       = None,
+        start          = 2000,
+        stop           = 2010,
+        dt             = None,
+        human_pars     = None,
+        mosquito_pars  = None,
+        nodes          = None,
         **sim_kwargs,
-    )
+    ):
+        #-------------------------------------------------------------
+        # default time step is one day
+        # Starsim times are in years, so convert from days if needed.
+        #-------------------------------------------------------------
+        if dt is None:
+            dt = ss.days(1)
+
+        #-------------------------------------------------------------
+        # If nodes aren't provided, create a single-NodeGrid with
+        # the entire population.
+        #-------------------------------------------------------------
+        if nodes is None:
+            nodes = NodeGrid(populations=[10_000])
+        n_agents = nodes.total_population
+        people   = ss.People(n_agents, age_data=age_data)
+
+        #-------------------------------------------------------------
+        # Create the malaria disease module
+        #-------------------------------------------------------------
+        if human == 'sis':
+            human_mod = MalariaHumanSIS(pars=human_pars)
+        elif human == 'seis':
+            human_mod = MalariaHumanSEIS(pars=human_pars)
+        else:
+            raise ValueError(
+                f"Unknown human model '{human}'. "
+                f"Valid options are 'sis' or 'seis'."
+            )
+
+        #-------------------------------------------------------------
+        # Create the mosquito module
+        #-------------------------------------------------------------
+        if mosquito == 'agents':
+            mos = MosquitoesAdultFemaleAgentsOnly(pars=mosquito_pars)
+        elif mosquito == 'eir_only':
+            mos = MosqitoesEirOnly(pars=mosquito_pars)
+        else:
+            raise ValueError(
+                f"Unknown mosquito model '{mosquito}'. "
+                f"Valid options are 'agents' or 'eir_only'."
+            )
+
+        node_state = NodeState(nodes)
+
+        super().__init__(
+            people     = people,
+            start      = start,
+            stop       = stop,
+            dt         = dt,
+            diseases   = human_mod,
+            connectors = [node_state, mos],
+            **sim_kwargs,
+        )

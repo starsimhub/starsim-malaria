@@ -18,7 +18,6 @@ uniformly across all nodes.  When provided they must match the node count:
 
 import numpy as np
 
-
 class NodeGrid:
     """
     Static spatial node configuration.

@@ -27,9 +27,9 @@ MosquitoesAdultFemaleAgentsOnly
     driven by a monthly emergence rate. Use when explicit mosquito lifecycle
     dynamics are needed.
 
-make_sim
-    Convenience factory that assembles a ready-to-run ss.Sim from the
-    modules above.
+Sim
+    Subclass of ``ss.Sim`` that assembles a ready-to-run malaria simulation
+    from the modules above.
 
 Interface contract
 ------------------
@@ -48,20 +48,20 @@ Quick start
 -----------
 EIR-only mode (no mosquito agents)::
 
-    from malaria import make_sim
-    sim = make_sim(mosquito='eir_only')
+    import malariasim as ms
+    sim = ms.Sim(mosquito='eir_only')
     sim.run()
     sim.plot()
 
 Agent-based mosquito mode::
 
-    sim = make_sim(mosquito='agents')
+    sim = ms.Sim(mosquito='agents')
     sim.run()
     sim.plot()
 
 Custom parameters::
 
-    sim = make_sim(
+    sim = ms.Sim(
         mosquito='agents',
         n_agents=20_000,
         start=2010,
@@ -84,7 +84,9 @@ from .mosquito_eir_only import MosqitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
 from .node_grid         import NodeGrid
 from .node_state        import NodeState
-from .sim               import make_sim
+from .sim               import Sim
+from .performance       import PerformanceMonitor
+from .results           import AgeBinPopulation, MalariaMultiSim
 
 __all__ = [
     'MalariaHumanBase',
@@ -94,7 +96,10 @@ __all__ = [
     'MosquitoesAdultFemaleAgentsOnly',
     'NodeGrid',
     'NodeState',
-    'make_sim',
+    'Sim',
+    'PerformanceMonitor',
+    'AgeBinPopulation',
+    'MalariaMultiSim',
     'SYMPTOM_NONE',
     'SYMPTOM_CLINICAL',
     'SYMPTOM_SEVERE',

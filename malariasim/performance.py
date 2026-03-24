@@ -6,7 +6,7 @@ Usage
     monitor = PerformanceMonitor()
 
     for sc in scenarios:
-        sim = make_sim(...)
+        sim = ms.Sim(...)
         monitor.start()
         sim.run()
         monitor.stop(sim)
@@ -14,12 +14,11 @@ Usage
     monitor.plot()
 """
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import os
 import psutil
 import time
+import sciris as sc
+import matplotlib.pyplot as plt
 
 
 class PerformanceMonitor:
@@ -61,18 +60,20 @@ class PerformanceMonitor:
     # Output
     # ------------------------------------------------------------------
 
-    def plot(self):
+    def plot(self, do_save=True):
         """Write a CPU bar chart and a text performance summary for each sim."""
         for rec in self._records:
             sim  = rec['sim']
-            slug = _slug(sim.label)
+            slug = sc.sanitizefilename(sim.label)
 
             fig = sim.loop.plot_cpu()
             if fig is not None:
-                cpu_fname = f'malaria_cpu_{slug}.png'
-                fig.savefig(cpu_fname, dpi=150)
+                if do_save:
+                    cpu_fname = f'malaria_cpu_{slug}.png'
+                    fig.savefig(cpu_fname, dpi=150)
+                    print(f'CPU plot saved to {cpu_fname}')
+                plt.show()
                 plt.close(fig)
-                print(f'CPU plot saved to {cpu_fname}')
 
             loop_df      = sim.loop.to_df()
             module_times = loop_df.groupby('module')['cpu_time'].sum().sort_values(ascending=False)
@@ -99,12 +100,10 @@ class PerformanceMonitor:
             for mod, t in module_times.head(8).items():
                 lines.append(f'    {mod:<38}  {t:.3f}s')
 
-            summary    = '\n'.join(lines)
-            perf_fname = f'malaria_perf_{slug}.txt'
-            with open(perf_fname, 'w', encoding='utf-8') as f:
-                f.write(summary + '\n')
-            print(f'Performance summary saved to {perf_fname}')
+            summary = '\n'.join(lines)
+            if do_save:
+                perf_fname = f'malaria_perf_{slug}.txt'
+                with open(perf_fname, 'w', encoding='utf-8') as f:
+                    f.write(summary + '\n')
+                print(f'Performance summary saved to {perf_fname}')
 
-
-def _slug(label):
-    return label.lower().replace(' ', '_').replace('+', 'plus').replace('-', '').strip('_')
