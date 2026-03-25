@@ -82,12 +82,13 @@ SCENARIOS = [
 # Build and run
 # ------------------------------------------------------------------
 
-def run_malaria(do_monitor=False, do_plot=True, do_save=False):
+def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
     """Run all scenarios and optionally plot results.
     
     Args:
         do_monitor (bool): whether to run the performance monitor (requires running serially)
         do_plot (bool): Plot results
+        show_plots (bool): Whether to display plots interactively (only applies if do_plot=True)
         do_save (bool): If do_plot=True, also save figures    
     """
 
@@ -128,7 +129,7 @@ def run_malaria(do_monitor=False, do_plot=True, do_save=False):
     
     # Optionally plot results
     if do_plot:
-        msim.plot_all(do_save=do_save)
+        msim.plot_all(show_plots=show_plots, do_save=do_save)
 
     return msim
 

@@ -10,11 +10,16 @@ AgeBinPopulation
 
 MalariaMultiSim
     ss.MultiSim subclass with malaria-specific plotting methods.
-    Call msim.plot_all(do_save=True) after running to generate all charts.
+    Call msim.plot_all(show_plotss=False,do_save=True) after running to generate all charts.
 """
 
 import numpy as np
 import sciris as sc
+
+# If I do this can stop getting the cpu plot from popping up.
+import matplotlib
+matplotlib.use('Agg') # Use a non-GUI backend
+
 import matplotlib.pyplot as plt
 import starsim as ss
 
@@ -121,16 +126,18 @@ class MalariaMultiSim(ss.MultiSim):
 
     # -- helpers --------------------------------------------------
 
-    def _save(self, fname, do_save=True, dpi=150):
+    def _save(self, fname, show_plots=False, do_save=True, dpi=150):
         plt.tight_layout()
         if do_save:
             plt.savefig(fname, dpi=dpi)
             print(f'Plot saved to {fname}')
-        plt.show()
+        if show_plots:
+            plt.show()
+        plt.close()
 
     # -- individual plot methods ----------------------------------
 
-    def plot_prevalence(self, do_save=True):
+    def plot_prevalence(self, show_plots=False, do_save=True):
         """2x2 grid: total and per-node prevalence for each sim."""
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True, sharey=True)
         fig.suptitle('Malaria prevalence — model comparison', fontsize=13)
@@ -156,9 +163,9 @@ class MalariaMultiSim(ss.MultiSim):
             ax.legend(fontsize=7)
             ax.grid(True, alpha=0.3)
 
-        self._save('malaria_prevalence.png', do_save=do_save)
+        self._save('malaria_prevalence.png', show_plots=show_plots, do_save=do_save)
 
-    def plot_compartments(self, do_save=True):
+    def plot_compartments(self, show_plots=False, do_save=True):
         """2x2 grid: S (E) I fractions for each sim."""
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True, sharey=True)
         fig.suptitle('Malaria compartment fractions', fontsize=13)
@@ -181,9 +188,9 @@ class MalariaMultiSim(ss.MultiSim):
             ax.legend(fontsize=8)
             ax.grid(True, alpha=0.3)
 
-        self._save('malaria_compartments.png', do_save=do_save)
+        self._save('malaria_compartments.png',  show_plots=show_plots, do_save=do_save)
 
-    def plot_mosquito_sei(self, do_save=True):
+    def plot_mosquito_sei(self, show_plots=False, do_save=True):
         """2x2 grid: mosquito SEI compartments (EIR-only panels show placeholder text)."""
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
         fig.suptitle('Mosquito SEI compartments', fontsize=13)
@@ -211,9 +218,9 @@ class MalariaMultiSim(ss.MultiSim):
             ax.plot(timevec, res.n_infectious, label='Infectious', color='firebrick',  lw=1.5)
             ax.legend(fontsize=8)
 
-        self._save('malaria_mosquitoes.png', do_save=do_save)
+        self._save('malaria_mosquitoes.png',  show_plots=show_plots, do_save=do_save)
 
-    def plot_mosquito_by_node(self, do_save=True):
+    def plot_mosquito_by_node(self, show_plots=False, do_save=True):
         """One chart per agents-mode sim: mosquito count per node."""
         agents_sims = [s for s in self.sims if s.analyzers[0].node_mosquito_hist]
         if not agents_sims:
@@ -235,9 +242,9 @@ class MalariaMultiSim(ss.MultiSim):
             ax.legend(fontsize=8)
             ax.grid(True, alpha=0.3)
 
-        self._save('malaria_mosquitoes_by_node.png', do_save=do_save)
+        self._save('malaria_mosquitoes_by_node.png',  show_plots=show_plots, do_save=do_save)
 
-    def plot_age_bins(self, do_save=True):
+    def plot_age_bins(self, show_plots=False, do_save=True):
         """One figure per sim: population by 5-year age bin + per-node totals."""
         for sim in self.sims:
             az      = sim.analyzers[0]
@@ -274,16 +281,18 @@ class MalariaMultiSim(ss.MultiSim):
             for ax in axes.flat[hidden_start:]:
                 ax.set_visible(False)
 
-            self._save(f'malaria_age_bins_{sc.sanitizefilename(sim.label)}.png', do_save=do_save)
+            self._save(f'malaria_age_bins_{sc.sanitizefilename(sim.label)}.png',
+                         show_plots=show_plots,
+                         do_save=do_save)
 
     # -- entry point ----------------------------------------------
 
-    def plot_all(self, do_save=True):
+    def plot_all(self, show_plots=False, do_save=True):
         """Generate all output charts and performance summaries."""
-        self.plot_prevalence(do_save=do_save)
-        self.plot_compartments(do_save=do_save)
-        self.plot_mosquito_sei(do_save=do_save)
-        self.plot_mosquito_by_node(do_save=do_save)
-        self.plot_age_bins(do_save=do_save)
+        self.plot_prevalence(show_plots=show_plots, do_save=do_save)
+        self.plot_compartments(show_plots=show_plots, do_save=do_save)
+        self.plot_mosquito_sei(show_plots=show_plots, do_save=do_save)
+        self.plot_mosquito_by_node(show_plots=show_plots, do_save=do_save)
+        self.plot_age_bins(show_plots=show_plots, do_save=do_save)
         if self.monitor is not None:
-            self.monitor.plot(do_save=do_save)
+            self.monitor.plot(show_plots=show_plots, do_save=do_save)

@@ -60,7 +60,7 @@ class PerformanceMonitor:
     # Output
     # ------------------------------------------------------------------
 
-    def plot(self, do_save=True):
+    def plot(self, show_plots=False, do_save=True):
         """Write a CPU bar chart and a text performance summary for each sim."""
         for rec in self._records:
             sim  = rec['sim']
@@ -72,7 +72,8 @@ class PerformanceMonitor:
                     cpu_fname = f'malaria_cpu_{slug}.png'
                     fig.savefig(cpu_fname, dpi=150)
                     print(f'CPU plot saved to {cpu_fname}')
-                plt.show()
+                if show_plots:
+                    plt.show()
                 plt.close(fig)
 
             loop_df      = sim.loop.to_df()
