@@ -124,7 +124,9 @@ class MalariaMultiSim(ss.MultiSim):
         super().__init__(sims=sims, **kwargs)
         self.monitor = monitor
 
-    # -- helpers --------------------------------------------------
+    # -------------------------------------------------------------
+    # -- helpers
+    # -------------------------------------------------------------
 
     def _save(self, fname, show_plots=False, do_save=True, dpi=150):
         plt.tight_layout()
@@ -135,7 +137,9 @@ class MalariaMultiSim(ss.MultiSim):
             plt.show()
         plt.close()
 
-    # -- individual plot methods ----------------------------------
+    # -------------------------------------------------------------
+    # -- individual plot methods
+    # -------------------------------------------------------------
 
     def plot_prevalence(self, show_plots=False, do_save=True):
         """2x2 grid: total and per-node prevalence for each sim."""
@@ -285,7 +289,9 @@ class MalariaMultiSim(ss.MultiSim):
                          show_plots=show_plots,
                          do_save=do_save)
 
-    # -- entry point ----------------------------------------------
+    # -------------------------------------------------------------
+    # -- entry point
+    # -------------------------------------------------------------
 
     def plot_all(self, show_plots=False, do_save=True):
         """Generate all output charts and performance summaries."""

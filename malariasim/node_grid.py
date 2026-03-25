@@ -89,7 +89,9 @@ class NodeGrid:
         eir         = None,
         f_indoor    = None,
     ):
+        # --------------------------------
         # --- n_nodes from populations ---
+        # --------------------------------
         if populations is None:
             self.n_nodes          = 1
             self.pop_fractions    = np.ones(1)
@@ -104,7 +106,9 @@ class NodeGrid:
             self.pop_fractions    = pops / pops.sum()
             self.total_population = int(pops.sum())
 
+        # --------------
         # --- labels ---
+        # --------------
         if labels is None:
             self.labels = [f'Node {i}' for i in range(self.n_nodes)]
         else:
@@ -115,7 +119,9 @@ class NodeGrid:
                     f'n_nodes={self.n_nodes}'
                 )
 
+        # -----------------
         # --- emergence ---
+        # -----------------
         if emergence is None:
             self.emergence = None
         else:
@@ -128,7 +134,9 @@ class NodeGrid:
             if np.any(self.emergence < 0):
                 raise ValueError('All emergence values must be non-negative')
 
+        # -----------
         # --- eir ---
+        # -----------
         if eir is None:
             self.eir = None
         else:
@@ -145,7 +153,9 @@ class NodeGrid:
             if np.any(self.eir < 0):
                 raise ValueError('All eir values must be non-negative')
 
+        # ----------------
         # --- f_indoor ---
+        # ----------------
         if f_indoor is None:
             self.f_indoor = None
         else:
