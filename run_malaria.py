@@ -92,7 +92,9 @@ def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
         do_save (bool): If do_plot=True, also save figures    
     """
 
+    # ----------------------------------------------------------
     # Build sims
+    # ----------------------------------------------------------
     sims    = []
     for scen in SCENARIOS:
         scen = scen.copy()  # copy so SCENARIOS stays intact
@@ -110,13 +112,19 @@ def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
         )
         sims.append(sim)
 
+    # ----------------------------------------------------------
     # Create a performance monitor
+    # ----------------------------------------------------------
     monitor = ms.PerformanceMonitor() if do_monitor else None
 
+    # ----------------------------------------------------------
     # Combine into a MultiSim
+    # ----------------------------------------------------------
     msim = ms.MalariaMultiSim(sims, monitor=monitor)
     
+    # ----------------------------------------------------------
     # Run sims
+    # ----------------------------------------------------------
     if do_monitor: # If monitoring, run the sims individually
         for sim in msim.sims:
             print(f'Running: {label}')
@@ -127,7 +135,9 @@ def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
     else: # Otherwise, run all the sims in parallel (no monitoring)
         msim.run() 
     
+    # ----------------------------------------------------------
     # Optionally plot results
+    # ----------------------------------------------------------
     if do_plot:
         msim.plot_all(show_plots=show_plots, do_save=do_save)
 

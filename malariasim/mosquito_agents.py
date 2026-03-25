@@ -208,14 +208,12 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             self._kill_mosquitoes(dying)
 
         # --------------------------------------------------
-        # 3. Births — per node using n_humans from NodeState
+        # 3. Births — vectorized over all nodes
         # --------------------------------------------------
-        for nid in range(ns.grid.n_nodes):
-            n_humans_node  = int(ns.n_humans[nid])
-            emergence_rate = self._emergence_rate_for_node(ns.grid, nid, sim.t.year % 1)
-            n_new          = int(np.random.poisson(emergence_rate * n_humans_node * dt_days))
-            if n_new > 0:
-                self._birth_mosquitoes(ti, dt_days, n_new, nid)
+        n_new_per_node, total_new = self._sample_births(ns.grid, sim.t.year % 1, ns.n_humans, dt_days)
+
+        if total_new > 0:
+            self._place_births(ti, dt_days, n_new_per_node, total_new, ns.grid.n_nodes)
 
         # -----------------------
         # 4. Exposed → infectious
@@ -226,56 +224,18 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             self.infectious[newly_infectious] = True
 
         # ----------------------------------------------------------
-        # 5. Human → mosquito transmission — per node from NodeState
+        # 5. Human → mosquito transmission — vectorized over all nodes
         # ----------------------------------------------------------
-        for nid in range(ns.grid.n_nodes):
-            sus_idx = np.where(self.alive & self.susceptible & (self.node_id == nid))[0]
-            if len(sus_idx) == 0:
-                continue
-            f             = ns.grid.f_indoor[nid] if ns.grid.f_indoor is not None else p.f_indoor
-            p_inf_indoor  = ns.p_inf_indoor[nid]
-            p_inf_outdoor = ns.p_inf_outdoor[nid]
-            p_bite        = min(p.bites_per_female_per_day * dt_days, 1.0)
-            bites_indoor  = np.random.random(len(sus_idx)) < f
-            p_exposed     = np.where(bites_indoor, p_bite * p_inf_indoor, p_bite * p_inf_outdoor)
-            gets_exposed  = np.random.random(len(sus_idx)) < p_exposed
-            new_idx       = sus_idx[gets_exposed]
-            if len(new_idx):
-                eip_steps                   = p.eip_days / dt_days
-                self.susceptible[new_idx]   = False
-                self.exposed[new_idx]       = True
-                self.ti_infectious[new_idx] = ti + eip_steps
+        sus_idx = np.where(self.alive & self.susceptible)[0]
+        if len(sus_idx):
+            self._expose_susceptible_mosquitoes(sus_idx, ns, ti, dt_days)
 
         # -----------------------------------
         # 6. Results + write EIR to NodeState
         # -----------------------------------
-        n_humans_total = int(sim.people.alive.sum())
-        alive_mask     = self.alive
-        n_alive        = int(alive_mask.sum())
-        n_inf          = int((alive_mask & self.infectious).sum())
-        annual_eir     = (
-            n_inf * p.bites_per_female_per_day * DAYS_PER_YEAR / float(n_humans_total)
-            if n_humans_total > 0 else 0.0
-        )
-        self.results.n_susceptible[ti]      = int((alive_mask & self.susceptible).sum())
-        self.results.n_exposed[ti]          = int((alive_mask & self.exposed).sum())
-        self.results.n_infectious[ti]       = n_inf
-        self.results.n_total[ti]            = n_alive
-        self.results.eir_annual[ti]         = annual_eir
-        self.results.eir_indoor_annual[ti]  = annual_eir * p.f_indoor
-        self.results.eir_outdoor_annual[ti] = annual_eir * (1.0 - p.f_indoor)
-
-        for nid in range(ns.grid.n_nodes):
-            n_h = int(ns.n_humans[nid])
-            if n_h == 0:
-                ns.eir_indoor[nid]  = 0.0
-                ns.eir_outdoor[nid] = 0.0
-                continue
-            n_inf_node = int((alive_mask & self.infectious & (self.node_id == nid)).sum())
-            f          = ns.grid.f_indoor[nid] if ns.grid.f_indoor is not None else p.f_indoor
-            eir_dt     = n_inf_node * p.bites_per_female_per_day * dt_days / n_h
-            ns.eir_indoor[nid]  = eir_dt * f
-            ns.eir_outdoor[nid] = eir_dt * (1.0 - f)
+        alive_mask = self.alive
+        self._record_results(ti, alive_mask, sim.people.alive.sum())
+        self._write_node_eir(ns, alive_mask, dt_days)
         return
 
     # ------------------------------------------------------------------
@@ -338,37 +298,167 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         self.ti_dead[dying]       = np.inf
         return
 
-    def _birth_mosquitoes(self, ti, dt_days, n_new, nid):
+    def _record_results(self, ti, alive_mask, n_humans_total):
         """
-        Place n_new susceptible mosquitoes into free array slots for node nid.
+        Record per-timestep mosquito population counts and aggregate EIR.
 
-        If the buffer is exhausted a warning is printed and births are capped.
-        The caller is responsible for computing n_new from the emergence rate.
+        Parameters
+        ----------
+        ti             : int  — current simulation timestep index
+        alive_mask     : bool ndarray — self.alive (pre-fetched by caller)
+        n_humans_total : int  — total alive humans this timestep
         """
-        if n_new == 0:
-            return
+        p     = self.pars
+        n_inf = int((alive_mask & self.infectious).sum())
+        annual_eir = (
+            n_inf * p.bites_per_female_per_day * DAYS_PER_YEAR / float(n_humans_total)
+            if n_humans_total > 0 else 0.0
+        )
+        self.results.n_susceptible[ti]      = int((alive_mask & self.susceptible).sum())
+        self.results.n_exposed[ti]          = int((alive_mask & self.exposed).sum())
+        self.results.n_infectious[ti]       = n_inf
+        self.results.n_total[ti]            = int(alive_mask.sum())
+        self.results.eir_annual[ti]         = annual_eir
+        self.results.eir_indoor_annual[ti]  = annual_eir * p.f_indoor
+        self.results.eir_outdoor_annual[ti] = annual_eir * (1.0 - p.f_indoor)
+        return
 
+    def _write_node_eir(self, ns, alive_mask, dt_days):
+        """
+        Write per-node EIR to NodeState for the human module to read next step.
+
+        Parameters
+        ----------
+        ns         : NodeState — eir_indoor/outdoor arrays to be written
+        alive_mask : bool ndarray — self.alive (pre-fetched by caller)
+        dt_days    : float — timestep length in days
+        """
+        p              = self.pars
+        n_nodes        = ns.grid.n_nodes
+        inf_node_ids   = self.node_id[alive_mask & self.infectious]
+        n_inf_per_node = np.bincount(inf_node_ids, minlength=n_nodes).astype(float)
+        n_h            = np.asarray(ns.n_humans, dtype=float)
+        safe_n_h       = np.where(n_h > 0, n_h, 1.0)
+        eir_dt         = n_inf_per_node * p.bites_per_female_per_day * dt_days / safe_n_h
+        eir_dt[n_h == 0] = 0.0
+        f_arr          = (np.asarray(ns.grid.f_indoor)
+                          if ns.grid.f_indoor is not None
+                          else float(p.f_indoor))
+        ns.eir_indoor[:]  = eir_dt * f_arr
+        ns.eir_outdoor[:] = eir_dt * (1.0 - f_arr)
+        return
+
+    def _expose_susceptible_mosquitoes(self, sus_idx, ns, ti, dt_days):
+        """
+        Apply human → mosquito transmission for the current timestep.
+
+        Each alive susceptible mosquito bites indoors or outdoors (Bernoulli
+        draw using per-node f_indoor), then becomes exposed with probability
+        p_bite * p_inf_indoor/outdoor read from NodeState.  Newly exposed
+        mosquitoes have ti_infectious scheduled at ti + EIP.
+
+        Parameters
+        ----------
+        sus_idx : ndarray of int — indices of alive susceptible mosquitoes
+        ns      : NodeState — carries p_inf_indoor/outdoor and grid.f_indoor
+        ti      : int       — current simulation timestep index
+        dt_days : float     — timestep length in days
+        """
+        p     = self.pars
+        nids  = self.node_id[sus_idx]
+        f_arr = (np.asarray(ns.grid.f_indoor)[nids]
+                 if ns.grid.f_indoor is not None
+                 else float(p.f_indoor))
+        p_bite        = min(p.bites_per_female_per_day * dt_days, 1.0)
+        bites_indoor  = np.random.random(len(sus_idx)) < f_arr
+        p_inf_indoor  = np.asarray(ns.p_inf_indoor)[nids]
+        p_inf_outdoor = np.asarray(ns.p_inf_outdoor)[nids]
+        p_exposed     = np.where(bites_indoor, p_bite * p_inf_indoor, p_bite * p_inf_outdoor)
+        new_idx       = sus_idx[np.random.random(len(sus_idx)) < p_exposed]
+        if len(new_idx):
+            self.susceptible[new_idx]   = False
+            self.exposed[new_idx]       = True
+            self.ti_infectious[new_idx] = ti + p.eip_days / dt_days
+        return
+
+    def _sample_births(self, grid, t_frac, n_humans, dt_days):
+        """
+        Draw the number of new susceptible mosquitoes per node for this timestep.
+
+        Interpolates emergence rates for all nodes simultaneously (t_frac is
+        the same for every node, so the month interval and alpha are computed
+        once and broadcast across the profile matrix).  A single vectorized
+        Poisson draw then produces per-node birth counts.
+
+        Parameters
+        ----------
+        grid    : NodeGrid — spatial configuration (provides emergence profiles)
+        t_frac  : float   — fractional position within the year, in [0, 1)
+        n_humans : array-like of shape (n_nodes,) — current human count per node
+        dt_days : float   — timestep length in days
+
+        Returns
+        -------
+        n_new_per_node : ndarray of int, shape (n_nodes,)
+        total_new      : int — sum of n_new_per_node
+        """
+        if grid.emergence is not None:
+            profiles = np.asarray(grid.emergence)                            # (n_nodes, 12)
+        else:
+            profiles = np.tile(np.asarray(self.pars.emergence), (grid.n_nodes, 1))
+        x_months = np.arange(12) / 12.0
+        x_wrap   = np.append(x_months, 1.0)                                 # (13,)
+        y_wrap   = np.concatenate([profiles, profiles[:, :1]], axis=1)      # (n_nodes, 13)
+        lo       = max(0, int(np.searchsorted(x_wrap, t_frac, side='right')) - 1)
+        alpha    = (t_frac - x_wrap[lo]) / (x_wrap[lo + 1] - x_wrap[lo])
+        rates    = y_wrap[:, lo] + alpha * (y_wrap[:, lo + 1] - y_wrap[:, lo])  # (n_nodes,)
+
+        lambdas        = rates * np.asarray(n_humans, dtype=float) * dt_days
+        n_new_per_node = np.random.poisson(lambdas).astype(int)
+        return n_new_per_node, int(n_new_per_node.sum())
+
+    def _place_births(self, ti, dt_days, n_new_per_node, total_new, n_nodes):
+        """
+        Fill free mosquito-array slots with newly emerged susceptibles.
+
+        Finds all free slots once, then assigns node IDs in bulk using
+        np.repeat.  If the buffer is exhausted, nodes are filled in order
+        until slots run out and a warning is printed.
+
+        Parameters
+        ----------
+        ti             : int   — current simulation timestep index
+        dt_days        : float — timestep length in days
+        n_new_per_node : ndarray of int, shape (n_nodes,) — births per node
+        total_new      : int   — sum of n_new_per_node (pre-computed by caller)
+        n_nodes        : int   — number of spatial nodes
+        """
         free_slots = np.where(~self.alive)[0]
-        if len(free_slots) < n_new:
+        if len(free_slots) < total_new:
             print(
                 f'Warning (MosquitoesAdultFemaleAgentsOnly): mosquito buffer full at '
-                f'timestep {ti}. {n_new - len(free_slots)} births dropped. '
+                f'timestep {ti}. {total_new - len(free_slots)} births dropped. '
                 f'Consider increasing the buffer by raising the emergence values.'
             )
-            n_new = len(free_slots)
-            if n_new == 0:
-                return
+            # Cap nodes in order until free slots are exhausted.
+            capped         = np.minimum(np.cumsum(n_new_per_node), len(free_slots))
+            n_new_per_node = np.diff(capped, prepend=0)
+            total_new      = int(n_new_per_node.sum())
 
-        idx             = free_slots[:n_new]
+        if total_new == 0:
+            return
+
+        idx             = free_slots[:total_new]
+        node_ids_new    = np.repeat(np.arange(n_nodes), n_new_per_node)
         mean_life_steps = self.pars.life_expectancy / dt_days
 
         self.alive[idx]         = True
         self.susceptible[idx]   = True
         self.exposed[idx]       = False
         self.infectious[idx]    = False
-        self.node_id[idx]       = nid
+        self.node_id[idx]       = node_ids_new
         self.ti_infectious[idx] = np.inf
-        self.ti_dead[idx]       = ti + np.random.exponential(mean_life_steps, n_new).astype(int)
+        self.ti_dead[idx]       = ti + np.random.exponential(mean_life_steps, total_new).astype(int)
         return
 
     def _emergence_rate_for_node(self, grid, nid, t):

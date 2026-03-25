@@ -194,8 +194,8 @@ class MalariaHumanBase(ss.SIS):
             ss.IntArr('node_id',                default=0,                   label='Spatial node index (0 when no NodeState)'),
         )
 
-        # Holds the current-step total EIR; read by the p_inf_bite callable.
-        self._eir_total_dt = 0.0
+        # (eir_total_dt is no longer cached here — _p_inf_bite_callable reads
+        # per-node EIR directly from NodeState using each agent's node_id.)
         # NodeState — resolved once on first call to _get_node_state().
         self._ns_cache = None
         return
@@ -241,9 +241,10 @@ class MalariaHumanBase(ss.SIS):
                 self.biting_heterogeneity[uids] = np.maximum(drawn, 1e-10)
             else:
                 self.biting_heterogeneity[uids] = 1.0
-            # ----------------------------------------------------------------------------
-            # ----------------------------------------------------------------------------
 
+            # ----------------------------------------------------------------------------
+            # assign newborns to nodes according to pop_fractions (if NodeState is present)
+            # ----------------------------------------------------------------------------
             ns    = self._get_node_state()
             fracs = ns.grid.pop_fractions
             self.node_id[uids] = np.random.choice(len(fracs), size=len(uids), p=fracs)
@@ -282,14 +283,20 @@ class MalariaHumanBase(ss.SIS):
         freshly infected agents appear in infected_alive.
         """
 
+        # --------------------------------------------------------------------------------------
         # Update observables (infectiousness, hrp2_pg, fever_F) based on the new disease states.
+        # --------------------------------------------------------------------------------------
         self._update_observables()
 
+        # --------------------------------------------------------------------------------------
         # Classify symptoms for infected agents.
+        # --------------------------------------------------------------------------------------
         self._update_symptom_state()
 
+        # --------------------------------------------------------------------------------------
         # Kill agents whose symptom state reached DISEASE_DEATH.
         # request_death is processed at the same point as natural deaths.
+        # --------------------------------------------------------------------------------------
         infected_alive    = self.infected & self.sim.people.alive
         symptom_deaths = (self.symptom_state == SYMPTOM_DISEASE_DEATH) & infected_alive
         if symptom_deaths.any():
@@ -311,39 +318,33 @@ class MalariaHumanBase(ss.SIS):
         EIR-based M→H transmission, bypassing Starsim's network machinery.
 
         Reads per-node EIR from NodeState (written by the mosquito connector
-        in the previous timestep) and applies M→H transmission separately for
-        susceptibles in each node.  NodeState is always present — a 1-node
-        grid is created by Sim() when no explicit spatial structure is
-        configured.
+        in the previous timestep) and applies M→H transmission to all
+        susceptibles in a single filter() call.  _p_inf_bite_callable looks
+        up each agent's per-node EIR from NodeState via node_id, so no
+        per-node loop is needed.  CRN is preserved: each agent always draws
+        from its own RNG slot regardless of which other agents share the call.
+
+        NodeState is always present — a 1-node grid is created by Sim() when
+        no explicit spatial structure is configured.
 
         set_prognoses() is called for newly exposed agents. Override
         set_prognoses() in subclasses to route agents to a different starting
         state (e.g. the exposed state in SEIS).
         """
         ns = self._get_node_state()
-        all_new_uids = []
-        for nid in range(ns.grid.n_nodes):
-            eir_total_dt = ns.eir_indoor[nid] + ns.eir_outdoor[nid]
-            if eir_total_dt <= 0:
-                continue
-            sus_in_node = self.susceptible & (self.node_id == nid)
-            if not sus_in_node.any():
-                continue
-            self._eir_total_dt = eir_total_dt
-            # ----------------------------------------------------------------
-            # p_inf_bite is the starsim special Bernoulli distribution where
-            # _p_inf_bite_callable is called for each person and each person
-            # is using the equivalent of their own random number generator.
-            # ----------------------------------------------------------------
-            new_uids = self.pars.p_inf_bite.filter(sus_in_node)
 
-            # ---------------------------------
-            # laser-ngm's m2h_has_new_infection
-            # ---------------------------------
-            all_new_uids.extend(new_uids)
+        # ----------------------------------------------------------------
+        # p_inf_bite is the starsim special Bernoulli distribution where
+        # _p_inf_bite_callable is called for each person and each person
+        # is using the equivalent of their own random number generator.
+        # ----------------------------------------------------------------
+        new_uids = self.pars.p_inf_bite.filter(self.susceptible)
 
-        if all_new_uids:
-            self.set_prognoses(np.array(all_new_uids), sources=None)
+        # ---------------------------------
+        # laser-ngm's m2h_has_new_infection
+        # ---------------------------------
+        if len(new_uids):
+            self.set_prognoses(new_uids, sources=None)
 
         self._write_node_state(ns)
         return
@@ -412,17 +413,21 @@ class MalariaHumanBase(ss.SIS):
 
         Called by Starsim during p_inf_bite.filter(susceptible). Returns:
 
-            p[i] = EIR_total_dt * prob_human_infected_on_bite * rel_biting_rate[i]
+            p[i] = (eir_indoor[node] + eir_outdoor[node])
+                   * prob_human_infected_on_bite
+                   * rel_biting_rate[i]
 
-        _eir_total_dt is set in step() immediately before filter() is called.
+        EIR is looked up per agent from NodeState using node_id, so the
+        caller does not need to loop over nodes or set any scalar cache.
         """
         # ----------------------------------------------------------------
         # laser-ngm has this too, but rel_biting_rate was not implemented.
         # laser-ngm has m2h_p_infection_scale which is sort of like this
         # ----------------------------------------------------------------
-        p = (self._eir_total_dt
-             * self.pars.prob_human_infected_on_bite
-             * self.rel_biting_rate[uids])
+        ns       = self._get_node_state()
+        node_ids = np.asarray(self.node_id[uids], dtype=int)
+        eir      = np.asarray(ns.eir_indoor)[node_ids] + np.asarray(ns.eir_outdoor)[node_ids]
+        p = eir * float(self.pars.prob_human_infected_on_bite) * np.asarray(self.rel_biting_rate[uids], dtype=float)
         return np.clip(p, 0.0, 1.0)
 
     def _update_rel_biting_rate(self):
@@ -513,26 +518,31 @@ class MalariaHumanBase(ss.SIS):
         Computes n_humans and biting-rate-weighted mean infectiousness for
         each node.  Indoor and outdoor p_inf are set equal (no indoor-specific
         interventions yet).
+
+        Implementation uses np.bincount so the entire alive population is
+        traversed once rather than once per node.
         """
         # ---------------------------------------
         # laser-ngm's HumanToMosquitoTransmission
         # ---------------------------------------
-        alive = self.sim.people.alive
-        c     = float(self.pars.prob_mosquito_infected_on_bite)
-        for nid in range(ns.grid.n_nodes):
-            alive_in_node = alive & (self.node_id == nid)
-            n             = int(alive_in_node.sum())
-            ns.n_humans[nid] = n
-            if n == 0:
-                ns.p_inf_indoor[nid]  = 0.0
-                ns.p_inf_outdoor[nid] = 0.0
-                continue
-            uids = alive_in_node.uids
-            w    = np.array(self.rel_biting_rate[uids], dtype=float)
-            inf  = np.array(self.infectiousness[uids],  dtype=float)
-            p    = float((w * inf).sum()) / n * c
-            ns.p_inf_indoor[nid]  = p
-            ns.p_inf_outdoor[nid] = p
+        n_nodes   = ns.grid.n_nodes
+        alive_uids = self.sim.people.alive.uids
+        c          = float(self.pars.prob_mosquito_infected_on_bite)
+
+        node_ids = np.asarray(self.node_id[alive_uids], dtype=int)
+        w        = np.asarray(self.rel_biting_rate[alive_uids], dtype=float)
+        inf      = np.asarray(self.infectiousness[alive_uids],  dtype=float)
+
+        n_humans    = np.bincount(node_ids, minlength=n_nodes)
+        w_inf_sum   = np.bincount(node_ids, weights=w * inf,   minlength=n_nodes)
+
+        safe_n = np.where(n_humans > 0, n_humans, 1)
+        p_inf  = c * w_inf_sum / safe_n
+        p_inf[n_humans == 0] = 0.0
+
+        ns.n_humans[:]     = n_humans
+        ns.p_inf_indoor[:] = p_inf
+        ns.p_inf_outdoor[:] = p_inf
         return
 
     def _get_node_state(self):

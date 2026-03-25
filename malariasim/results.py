@@ -58,32 +58,36 @@ class AgeBinPopulation(ss.Analyzer):
         self.node_mosquito_hist   = {}   # mosquito count per node per step (agents mode only)
 
     def step(self):
-        people = self.sim.people
-        alive  = np.asarray(people.alive.values, dtype=bool)
-        age    = np.asarray(people.age.values,   dtype=float)
+        people  = self.sim.people
+        alive   = np.asarray(people.alive.values, dtype=bool)
+        age     = np.asarray(people.age.values,   dtype=float)
 
-        for (lo, hi), lbl in zip(self.BINS, self.labels):
-            mask = alive & (age >= lo) & (age < hi)
-            self.hist[lbl].append(int(mask.sum()))
-
-        self.hist['100+'].append(int((alive & (age >= 100)).sum()))
+        # --- age bins: single bincount instead of 20 masked-sum passes ---
+        # bin_idx 0-19 maps to the twenty 5-year bins; 20 captures 100+
+        bin_idx = np.minimum((age[alive] / 5.0).astype(int), 20)
+        counts  = np.bincount(bin_idx, minlength=21)
+        for i, lbl in enumerate(self.labels[:-2]):   # 20 five-year bins
+            self.hist[lbl].append(int(counts[i]))
+        self.hist['100+'].append(int(counts[20]))
         self.hist['Total'].append(int(alive.sum()))
 
-        # Per-node human population and infected counts
+        # --- per-node human and infected counts ---
         disease  = self.sim.diseases[0]
         ns       = disease._get_node_state()
+        n_nodes  = ns.grid.n_nodes
         node_id  = np.asarray(disease.node_id.values, dtype=int)
         infected = np.asarray(disease.infected.values, dtype=bool)
         if not self.node_hist:
             for lbl in ns.grid.labels:
                 self.node_hist[lbl]          = []
                 self.node_infected_hist[lbl] = []
+        n_per_node     = np.bincount(node_id[alive],            minlength=n_nodes)
+        n_inf_per_node = np.bincount(node_id[alive & infected], minlength=n_nodes)
         for nid, lbl in enumerate(ns.grid.labels):
-            in_node = alive & (node_id == nid)
-            self.node_hist[lbl].append(int(in_node.sum()))
-            self.node_infected_hist[lbl].append(int((in_node & infected).sum()))
+            self.node_hist[lbl].append(int(n_per_node[nid]))
+            self.node_infected_hist[lbl].append(int(n_inf_per_node[nid]))
 
-        # Per-node mosquito counts (only when agent-based mosquitoes are present)
+        # --- per-node mosquito counts (agent-based mode only) ---
         mos_mod = next(
             (m for m in self.sim.modules if isinstance(m, MosquitoesAdultFemaleAgentsOnly)),
             None,
@@ -92,10 +96,9 @@ class AgeBinPopulation(ss.Analyzer):
             if not self.node_mosquito_hist:
                 for lbl in ns.grid.labels:
                     self.node_mosquito_hist[lbl] = []
+            n_mos_per_node = np.bincount(mos_mod.node_id[mos_mod.alive], minlength=n_nodes)
             for nid, lbl in enumerate(ns.grid.labels):
-                self.node_mosquito_hist[lbl].append(
-                    int((mos_mod.alive & (mos_mod.node_id == nid)).sum())
-                )
+                self.node_mosquito_hist[lbl].append(int(n_mos_per_node[nid]))
 
     def finalize_results(self):
         super().finalize_results()
