@@ -19,6 +19,7 @@ import psutil
 import time
 import sciris as sc
 import matplotlib.pyplot as plt
+import starsim as ss
 
 
 class PerformanceMonitor:
