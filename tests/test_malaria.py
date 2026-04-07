@@ -13,18 +13,18 @@ sc.options(interactive=False)
 default_nodes = ms.NodeGrid(populations=[n_agents])
 
 
-def make_sim(human='sis', mosquito='eir_only', **kwargs):
+def make_sim(human='sis', mosquito='eir_only', **kw):
     """Helper to create a small, fast sim for testing."""
-    kwargs.setdefault('nodes', default_nodes)
     return ms.Sim(
-        human=human,
-        mosquito=mosquito,
-        start=2000,
-        stop=2001,
-        dt=ss.days(1),
-        rand_seed=0,
-        verbose=0,
-        **kwargs,
+        human     = human,
+        mosquito  = mosquito,
+        start     = kw.pop('start', 2000),
+        stop      = kw.pop('stop', 2001),
+        nodes     = kw.pop('nodes', default_nodes),
+        dt        = kw.pop('dt', ss.days(1)),
+        rand_seed = kw.pop('rand_seed', 0),
+        verbose   = kw.pop('verbose', 0),
+        **kw,
     )
 
 
@@ -97,8 +97,20 @@ def test_higher_eir_more_infections(do_plot=do_plot):
     return sim_lo, sim_hi
 
 
+def test_performance(human='sis', mosquito='eir_only', n_agents=10_000, n_days=730):
+    sc.heading('Testing performance ...')
+    start = 2000
+    stop = start + n_days/365
+    nodes = ms.NodeGrid(populations=[n_agents])
+    sim = make_sim(human=human, mosquito=mosquito, nodes=nodes, start=start, stop=stop)
+    sim.run()
+    elapsed = sim.elapsed
+    sc.printcyan(f'\nRun time for {n_agents} agents and {n_days} days: {elapsed:n} s')
+    return sim
+
+
 if __name__ == '__main__':
-    do_plot = True
+    do_plot = False
     sc.options(interactive=do_plot)
     T = sc.timer()
 
@@ -106,6 +118,7 @@ if __name__ == '__main__':
     sim2 = test_seis_eir(do_plot=do_plot)
     sim3 = test_sis_agents(do_plot=do_plot)
     sims = test_higher_eir_more_infections(do_plot=do_plot)
+    sim4 = test_performance()
 
     T.toc()
 

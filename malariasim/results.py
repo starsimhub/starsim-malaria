@@ -15,11 +15,6 @@ MalariaMultiSim
 
 import numpy as np
 import sciris as sc
-
-# If I do this can stop getting the cpu plot from popping up.
-import matplotlib
-matplotlib.use('Agg') # Use a non-GUI backend
-
 import matplotlib.pyplot as plt
 import starsim as ss
 

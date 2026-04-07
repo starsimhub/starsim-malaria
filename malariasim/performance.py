@@ -62,49 +62,50 @@ class PerformanceMonitor:
 
     def plot(self, show_plots=False, do_save=True):
         """Write a CPU bar chart and a text performance summary for each sim."""
-        for rec in self._records:
-            sim  = rec['sim']
-            slug = sc.sanitizefilename(sim.label)
+        with ss.options.context(show=False):
+            for rec in self._records:
+                sim  = rec['sim']
+                slug = sc.sanitizefilename(sim.label)
 
-            fig = sim.loop.plot_cpu()
-            if fig is not None:
-                if do_save:
-                    cpu_fname = f'malaria_cpu_{slug}.png'
-                    fig.savefig(cpu_fname, dpi=150)
-                    print(f'CPU plot saved to {cpu_fname}')
-                if show_plots:
-                    plt.show()
-                plt.close(fig)
+                fig = sim.loop.plot_cpu()
+                if fig is not None:
+                    if do_save:
+                        cpu_fname = f'malaria_cpu_{slug}.png'
+                        fig.savefig(cpu_fname, dpi=150)
+                        print(f'CPU plot saved to {cpu_fname}')
+                    if show_plots:
+                        plt.show()
+                    plt.close(fig)
 
-            loop_df      = sim.loop.to_df()
-            module_times = loop_df.groupby('module')['cpu_time'].sum().sort_values(ascending=False)
+                loop_df      = sim.loop.to_df()
+                module_times = loop_df.groupby('module')['cpu_time'].sum().sort_values(ascending=False)
 
-            disease_name    = type(sim.diseases[0]).__name__.lower()
-            connector_names = [type(c).__name__.lower() for c in sim.connectors] if sim.connectors else []
+                disease_name    = type(sim.diseases[0]).__name__.lower()
+                connector_names = [type(c).__name__.lower() for c in sim.connectors] if sim.connectors else []
 
-            W = 52
-            lines = [
-                f'{"=" * W}',
-                f'  {sim.label}',
-                f'{"=" * W}',
-                f'  Runtime        : {rec["elapsed"]:.2f}s',
-                f'  Memory (RSS)   : {rec["mem_before"]:.1f} → {rec["mem_after"]:.1f} MB  (Δ {rec["mem_delta"]:+.1f} MB)',
-                f'  Human  ({disease_name})',
-                f'    CPU          : {module_times.get(disease_name, 0.0):.3f}s',
-            ]
-            for cname in connector_names:
-                lines += [
-                    f'  Mosquito ({cname})',
-                    f'    CPU          : {module_times.get(cname, 0.0):.3f}s',
+                W = 52
+                lines = [
+                    f'{"=" * W}',
+                    f'  {sim.label}',
+                    f'{"=" * W}',
+                    f'  Runtime        : {rec["elapsed"]:.2f}s',
+                    f'  Memory (RSS)   : {rec["mem_before"]:.1f} → {rec["mem_after"]:.1f} MB  (Δ {rec["mem_delta"]:+.1f} MB)',
+                    f'  Human  ({disease_name})',
+                    f'    CPU          : {module_times.get(disease_name, 0.0):.3f}s',
                 ]
-            lines.append(f'  Top modules by CPU:')
-            for mod, t in module_times.head(8).items():
-                lines.append(f'    {mod:<38}  {t:.3f}s')
+                for cname in connector_names:
+                    lines += [
+                        f'  Mosquito ({cname})',
+                        f'    CPU          : {module_times.get(cname, 0.0):.3f}s',
+                    ]
+                lines.append(f'  Top modules by CPU:')
+                for mod, t in module_times.head(8).items():
+                    lines.append(f'    {mod:<38}  {t:.3f}s')
 
-            summary = '\n'.join(lines)
-            if do_save:
-                perf_fname = f'malaria_perf_{slug}.txt'
-                with open(perf_fname, 'w', encoding='utf-8') as f:
-                    f.write(summary + '\n')
-                print(f'Performance summary saved to {perf_fname}')
+                summary = '\n'.join(lines)
+                if do_save:
+                    perf_fname = f'malaria_perf_{slug}.txt'
+                    with open(perf_fname, 'w', encoding='utf-8') as f:
+                        f.write(summary + '\n')
+                    print(f'Performance summary saved to {perf_fname}')
 
