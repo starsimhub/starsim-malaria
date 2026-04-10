@@ -30,7 +30,7 @@ for lo, hi, frac in zip(AGE_BIN_EDGES[:-1], AGE_BIN_EDGES[1:], AGE_BIN_FRACTIONS
 AGE_DATA = sc.dataframe({'age': ages, 'value': vals})
 
 DEMOGRAPHICS = [
-    ss.Births(birth_rate=ss.peryear(20)),
+    ss.Births(birth_rate=ss.peryear(100)),
     ss.Deaths(death_rate=ss.peryear(20)),
 ]
 
@@ -146,5 +146,5 @@ def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
 
 if __name__ == '__main__':
     T = sc.timer()
-    msim = run_malaria()
+    msim = run_malaria(show_plots=True)
     T.toc()

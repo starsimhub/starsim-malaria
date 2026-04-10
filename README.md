@@ -19,7 +19,7 @@ This is a direct translation of the LASER-NGM malaria model into Starsim.
 
 ### Hybrid compartmental/agent-based: `malaria_hybrid`
 
-This is a loose translation of the [Gervas et al. 2025](https://link.springer.com/article/10.1186/s12936-025-05633-x) compartmental malaria model into Starsim. It includes both compartmental and agent-based options for both humans and mosquitoes, plus simple interventions (ITNs and vaccines).
+This is a Ross-Macdonald malaria model implemented in Starsim with four interchangeable module combinations: ODE or agent-based (ABM) humans crossed with ODE or ABM mosquitoes. All four share the same `sim.c` compartment bus so any human module works with any mosquito module. Mosquitoes use SEI dynamics with seasonal forcing.
 
 ### Complex agent-based: `malariasim`
 

@@ -11,9 +11,9 @@ Usage
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import sciris as sc
 import starsim as ss
+import matplotlib.pyplot as plt
 
 import malaria_sslaser as ms
 
@@ -118,4 +118,4 @@ def run_malaria(do_plot=True, show_plots=False, out_path='malaria_results_sslase
 
 
 if __name__ == '__main__':
-    run_malaria()
+    run_malaria(show_plots=True)
