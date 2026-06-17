@@ -17,22 +17,10 @@ import malariasim as ms
 # Demographics: age pyramid + balanced birth/death rates
 # ------------------------------------------------------------------
 
-AGE_BIN_EDGES     = [0,    5,    10,   15,   20,   25,   30,   35,   40,   45,   50,    55,   60,    65,   70,    75,   80,   100]
-AGE_BIN_FRACTIONS = [0.13, 0.12, 0.11, 0.10, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005]
-
-# Expand bin fractions to per-year weights for ss.People age_data
-ages, vals = [], []
-for lo, hi, frac in zip(AGE_BIN_EDGES[:-1], AGE_BIN_EDGES[1:], AGE_BIN_FRACTIONS):
-    per_year = frac / (hi - lo)
-    for age in range(lo, hi):
-        ages.append(age)
-        vals.append(per_year)
-AGE_DATA = sc.dataframe({'age': ages, 'value': vals})
-
-DEMOGRAPHICS = [
-    ss.Births(birth_rate=ss.peryear(100)),
-    ss.Deaths(death_rate=ss.peryear(20)),
-]
+AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
+AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
+AGE_DATA          = sc.dataframe(ms.make_age_data())
+DEMOGRAPHICS      = ms.make_steady_state_demographics()
 
 # ------------------------------------------------------------------
 # Simulation settings
@@ -51,30 +39,21 @@ STOP  = 2002
 THREE_NODES = ms.NodeGrid(
     populations = [5_000, 3_000, 2_000],
     labels      = ['Urban', 'Peri-urban', 'Rural'],
-
-    # Per-node seasonal EIR (bites/person/year) — used by eir_only mosquito model.
-    eir = [
-        [ 5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5,  5],   # Urban      — high year-round
-        [ 2,  2,  5,  6,  8, 10, 12,  8,  5,  3,  2,  2],   # Peri-urban — moderate wet-season
-        [ 1,  1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1],   # Rural      — lower with sharp peak
-    ],
-
-    # Per-node monthly emergence (new females/human/day) — used by agents model.
-    emergence = [
-        [0.008, 0.008, 0.015, 0.030, 0.045, 0.060, 0.060, 0.045, 0.030, 0.015, 0.008, 0.008],
-        [0.005, 0.005, 0.010, 0.020, 0.030, 0.040, 0.040, 0.030, 0.020, 0.010, 0.005, 0.005],
-        [0.002, 0.002, 0.005, 0.010, 0.018, 0.025, 0.025, 0.018, 0.010, 0.005, 0.002, 0.002],
-    ],
-
-    # Per-node indoor bite fraction.
-    f_indoor = [0.80, 0.70, 0.55],
+    eir         = [ms.URBAN_EIR,      ms.PERI_URBAN_EIR,      ms.RURAL_EIR],
+    emergence   = [ms.URBAN_EMERGENCE, ms.PERI_URBAN_EMERGENCE, ms.RURAL_EMERGENCE],
+    f_indoor    = [ms.URBAN_F_INDOOR,  ms.PERI_URBAN_F_INDOOR,  ms.RURAL_F_INDOOR],
 )
 
 SCENARIOS = [
-    dict(label='SIS + EIR-only',  human='sis',  mosquito='eir_only', nodes=THREE_NODES),
-    dict(label='SEIS + EIR-only', human='seis', mosquito='eir_only', nodes=THREE_NODES),
-    dict(label='SIS + agents',    human='sis',  mosquito='agents',   nodes=THREE_NODES),
-    dict(label='SEIS + agents',   human='seis', mosquito='agents',   nodes=THREE_NODES),
+    dict(label='human-SIS + mosquito-EIR-only',  human='sis',  mosquito='eir_only', nodes=THREE_NODES),
+    dict(label='human-SEIS + mosquito-EIR-only', human='seis', mosquito='eir_only', nodes=THREE_NODES),
+    dict(label='human-ODE + mosquito-EIR-only',  human='ode',  mosquito='eir_only', nodes=THREE_NODES),
+    dict(label='human-SIS + mosquito-ODE',       human='sis',  mosquito='ode',      nodes=THREE_NODES),
+    dict(label='human-SEIS + mosquito-ODE',      human='seis', mosquito='ode',      nodes=THREE_NODES),
+    dict(label='human-ODE + mosquito-ODE',       human='ode',  mosquito='ode',      nodes=THREE_NODES),
+    dict(label='human-SIS + mosquito-agents',    human='sis',  mosquito='agents',   nodes=THREE_NODES),
+    dict(label='human-SEIS + mosquito-agents',   human='seis', mosquito='agents',   nodes=THREE_NODES),
+    dict(label='human-ODE + mosquito-agents',    human='ode',  mosquito='agents',   nodes=THREE_NODES),
 ]
 
 
@@ -100,14 +79,15 @@ def run_malaria(do_monitor=True, do_plot=True, show_plots=False, do_save=True):
         scen = scen.copy()  # copy so SCENARIOS stays intact
         label = scen.pop('label')
         sim = ms.Sim(
-            age_data     = AGE_DATA,
-            start        = START,
-            stop         = STOP,
-            dt           = ss.days(1),
-            label        = label,
-            rand_seed    = 0,
-            demographics = DEMOGRAPHICS,
-            analyzers    = ms.AgeBinPopulation(),
+            age_data      = AGE_DATA,
+            age_bin_edges = AGE_BIN_EDGES,
+            start         = START,
+            stop          = STOP,
+            dt            = ss.days(1),
+            label         = label,
+            rand_seed     = 0,
+            demographics  = DEMOGRAPHICS,
+            analyzers     = ms.AgeBinPopulation(),
             **scen,
         )
         sims.append(sim)

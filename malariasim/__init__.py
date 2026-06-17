@@ -80,11 +80,21 @@ import starsim as ss
 from .human_base        import MalariaHumanBase, SYMPTOM_NONE, SYMPTOM_CLINICAL, SYMPTOM_SEVERE, SYMPTOM_DISEASE_DEATH
 from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
+from .human_ode         import MalariaHumanODE
 from .mosquito_eir_only import MosquitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
+from .mosquito_ode      import MosquitoesODE
 from .node_grid         import NodeGrid
 from .node_state        import NodeState
 from .sim               import Sim
+from .demographics      import compute_mortality_schedule
+from .defaults          import (
+    AGE_BIN_EDGES, AGE_BIN_FRACTIONS,
+    URBAN_EIR, PERI_URBAN_EIR, RURAL_EIR,
+    URBAN_EMERGENCE, PERI_URBAN_EMERGENCE, RURAL_EMERGENCE,
+    URBAN_F_INDOOR, PERI_URBAN_F_INDOOR, RURAL_F_INDOOR,
+    make_steady_state_demographics, make_age_data, make_mortality_dataframe,
+)
 from .performance       import PerformanceMonitor
 from .results           import AgeBinPopulation, MalariaMultiSim
 
@@ -92,11 +102,19 @@ __all__ = [
     'MalariaHumanBase',
     'MalariaHumanSIS',
     'MalariaHumanSEIS',
+    'MalariaHumanODE',
     'MosquitoesEirOnly',
     'MosquitoesAdultFemaleAgentsOnly',
+    'MosquitoesODE',
     'NodeGrid',
     'NodeState',
     'Sim',
+    'compute_mortality_schedule',
+    'AGE_BIN_EDGES', 'AGE_BIN_FRACTIONS',
+    'URBAN_EIR', 'PERI_URBAN_EIR', 'RURAL_EIR',
+    'URBAN_EMERGENCE', 'PERI_URBAN_EMERGENCE', 'RURAL_EMERGENCE',
+    'URBAN_F_INDOOR', 'PERI_URBAN_F_INDOOR', 'RURAL_F_INDOOR',
+    'make_steady_state_demographics', 'make_age_data', 'make_mortality_dataframe',
     'PerformanceMonitor',
     'AgeBinPopulation',
     'MalariaMultiSim',

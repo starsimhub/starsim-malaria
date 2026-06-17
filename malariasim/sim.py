@@ -7,12 +7,15 @@ simulation. It is intentionally thin — all real logic lives in the individual
 modules.
 """
 
+import numpy as np
 import starsim as ss
 
 from .human_sis         import MalariaHumanSIS
 from .human_seis        import MalariaHumanSEIS
+from .human_ode         import MalariaHumanODE
 from .mosquito_eir_only import MosquitoesEirOnly
 from .mosquito_agents   import MosquitoesAdultFemaleAgentsOnly
+from .mosquito_ode      import MosquitoesODE
 from .node_grid         import NodeGrid
 from .node_state        import NodeState
 
@@ -31,6 +34,9 @@ class Sim(ss.Sim):
         - ``'seis'`` : :class:`MalariaHumanSEIS` — susceptible → exposed →
           infected → susceptible. Adds an explicit ~12-day incubation period
           before agents become infectious.
+        - ``'ode'``  : :class:`MalariaHumanODE` — SIS compartmental (ODE)
+          human population. Deterministic, no per-agent heterogeneity.
+          Fixed population; demographics are ignored.
 
     mosquito : str
         Which mosquito module to use:
@@ -38,6 +44,9 @@ class Sim(ss.Sim):
         - ``'agents'``   : :class:`MosquitoesAdultFemaleAgentsOnly` — SEI
           agent-based mosquito population with seasonal emergence. This is
           the default and gives the most realistic dynamics.
+        - ``'ode'``      : :class:`MosquitoesODE` — SEI compartmental (ODE)
+          mosquito population. Deterministic, much faster than the ABM.
+          Uses the same parameter names as ``'agents'``.
         - ``'eir_only'`` : :class:`MosquitoesEirOnly` — fixed or seasonally-
           varying EIR with no explicit mosquito agents. Faster and simpler;
           useful for calibration runs or when mosquito dynamics are not of
@@ -143,6 +152,7 @@ class Sim(ss.Sim):
         human          = 'sis',
         mosquito       = 'agents',
         age_data       = None,
+        age_bin_edges  = None,
         start          = 2000,
         stop           = 2010,
         dt             = None,
@@ -164,6 +174,53 @@ class Sim(ss.Sim):
         #-------------------------------------------------------------
         if nodes is None:
             nodes = NodeGrid(populations=[10_000])
+
+        # ODE human manages its own fixed compartments — the People object is
+        # kept for Starsim mechanics but demographics are stripped so the agent
+        # population doesn't grow away from the ODE's fixed totals.
+        if human == 'ode':
+            demos = sim_kwargs.pop('demographics', None) or []
+            if not isinstance(demos, list):
+                demos = [demos]
+
+            # Extract crude birth/death rates from ss.Births / ss.Deaths modules.
+            birth_rate = 0.0
+            death_rate = 0.0
+            for d in demos:
+                if isinstance(d, ss.Deaths):
+                    try:
+                        # ss.peryear(20) → float gives 20.0 (per 1 000 per year)
+                        death_rate = float(d.pars.death_rate) / 1000.0
+                    except Exception:
+                        pass
+
+            # Match birth rate to death rate so the ODE population stays roughly
+            # constant while still turning over the age distribution realistically.
+            birth_rate = death_rate
+
+            # Compute age_bin_fractions from age_data if edges are provided.
+            age_bin_fracs = None
+            if age_bin_edges is not None and age_data is not None:
+                edges = np.asarray(age_bin_edges)
+                ages  = age_data['age'].values
+                vals  = age_data['value'].values
+                fracs = np.zeros(len(edges) - 1)
+                for i in range(len(edges) - 1):
+                    mask     = (ages >= edges[i]) & (ages < edges[i + 1])
+                    fracs[i] = vals[mask].sum()
+                age_bin_fracs = fracs  # will be normalised inside MalariaHumanODE
+
+            # Merge into human_pars (caller-supplied values take precedence).
+            ode_extra = dict(
+                age_bin_edges       = age_bin_edges,
+                age_bin_fractions   = age_bin_fracs,
+                birth_rate_per_year = birth_rate,
+                death_rate_per_year = death_rate,
+            )
+            if human_pars:
+                ode_extra.update(human_pars)
+            human_pars = ode_extra
+
         n_agents = nodes.total_population
         people   = ss.People(n_agents, age_data=age_data)
 
@@ -174,10 +231,12 @@ class Sim(ss.Sim):
             human_mod = MalariaHumanSIS(pars=human_pars)
         elif human == 'seis':
             human_mod = MalariaHumanSEIS(pars=human_pars)
+        elif human == 'ode':
+            human_mod = MalariaHumanODE(pars=human_pars)
         else:
             raise ValueError(
                 f"Unknown human model '{human}'. "
-                f"Valid options are 'sis' or 'seis'."
+                f"Valid options are 'sis', 'seis', or 'ode'."
             )
 
         #-------------------------------------------------------------
@@ -185,12 +244,14 @@ class Sim(ss.Sim):
         #-------------------------------------------------------------
         if mosquito == 'agents':
             mos = MosquitoesAdultFemaleAgentsOnly(pars=mosquito_pars)
+        elif mosquito == 'ode':
+            mos = MosquitoesODE(pars=mosquito_pars)
         elif mosquito == 'eir_only':
             mos = MosquitoesEirOnly(pars=mosquito_pars)
         else:
             raise ValueError(
                 f"Unknown mosquito model '{mosquito}'. "
-                f"Valid options are 'agents' or 'eir_only'."
+                f"Valid options are 'agents', 'ode', or 'eir_only'."
             )
 
         node_state = NodeState(nodes)

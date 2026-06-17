@@ -141,8 +141,8 @@ class MalariaHumanBase(ss.SIS):
             imm_boost                      = 0.0,
 
             # Malaria-specific transmission parameters.
-            prob_human_infected_on_bite    = 1.0,   # Ross-MacDonald *b*
-            prob_mosquito_infected_on_bite = 1.0,   # Ross-MacDonald *c*
+            prob_human_infected_on_bite    = 1.0,   # 0.49, Ross-MacDonald *b*
+            prob_mosquito_infected_on_bite = 1.0,   # 0.25, Ross-MacDonald *c*
 
             # Biting heterogeneity: Gamma shape parameter.
             # <= 0 → disabled (biting_heterogeneity = 1 for all agents).

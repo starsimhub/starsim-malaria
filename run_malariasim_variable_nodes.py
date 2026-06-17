@@ -25,8 +25,8 @@ import malariasim as ms
 # Configurable parameters
 # -----------------------------------------------------------------------
 
-TOTAL_POP  = 100_000   # total human population across all nodes
-N_NODES    = 100        # number of spatial nodes
+TOTAL_POP  = 10_000   # total human population across all nodes
+N_NODES    = 1        # number of spatial nodes
 PEAK_MONTH = 6        # 0-based month index of transmission peak (6 = July)
 GRID_SEED  = 42       # RNG seed used only for node-grid generation
 START      = 2000
@@ -54,21 +54,10 @@ SIGMA_RANGE = (1.5, 4.0)
 # Demographics — identical to run_malaria.py
 # -----------------------------------------------------------------------
 
-AGE_BIN_EDGES     = [0,    5,    10,   15,   20,   25,   30,   35,   40,   45,   50,    55,   60,    65,   70,    75,   80,   100]
-AGE_BIN_FRACTIONS = [0.13, 0.12, 0.11, 0.10, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005]
-
-ages, vals = [], []
-for lo, hi, frac in zip(AGE_BIN_EDGES[:-1], AGE_BIN_EDGES[1:], AGE_BIN_FRACTIONS):
-    per_year = frac / (hi - lo)
-    for age in range(lo, hi):
-        ages.append(age)
-        vals.append(per_year)
-AGE_DATA = sc.dataframe({'age': ages, 'value': vals})
-
-DEMOGRAPHICS = [
-    ss.Births(birth_rate=ss.peryear(20)),
-    ss.Deaths(death_rate=ss.peryear(20)),
-]
+AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
+AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
+AGE_DATA          = sc.dataframe(ms.make_age_data())
+DEMOGRAPHICS      = ms.make_steady_state_demographics()
 
 
 # -----------------------------------------------------------------------
