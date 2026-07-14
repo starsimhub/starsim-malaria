@@ -3,9 +3,9 @@ results.py — analyzer and MultiSim subclass for malaria scenario comparisons.
 
 Public API
 ----------
-AgeBinPopulation
+ResultsAnalyzer
     ss.Analyzer that collects per-age-bin, per-node human counts and
-    per-node infected counts, plus per-node mosquito counts when
+    per-node infected counts, per-node EIR, plus per-node mosquito counts when
     MosquitoesAdultFemaleAgentsOnly is present.
 
 MalariaMultiSim
@@ -38,19 +38,21 @@ def _plain_counts(ax):
 # Analyzer
 # ------------------------------------------------------------------
 
-class AgeBinPopulation(ss.Analyzer):
+class ResultsAnalyzer(ss.Analyzer):
     """
     Record alive-agent counts per 5-year age bin (0-5, 5-10, …, 95-100)
     plus a Total, at every timestep.  Also records per-node human population,
-    infected counts, and (when agent mosquitoes are present) per-node mosquito
-    counts.  No 100+ bin is created: the hard age cap set by ``ss.Deaths`` at ``max_age=100``
-    ensures no agent legitimately exceeds 100 years old.
+    infected counts, per-node EIR, and (when agent mosquitoes are present)
+    per-node mosquito counts.  No 100+ bin is created: the hard age cap set by
+    ``ss.Deaths`` at ``max_age=100`` ensures no agent legitimately exceeds 100
+    years old.
 
     Results are stored in:
         self.hist                — dict[label] -> np.ndarray
         self.node_hist           — dict[node_label] -> np.ndarray
         self.node_infected_hist  — dict[node_label] -> np.ndarray
-        self.node_mosquito_hist  — dict[node_label] -> np.ndarray  (agents only)
+        self.node_eir_hist       — dict[node_label] -> np.ndarray  (bites/person/year)
+        self.node_mosquito_hist  — dict[node_label] -> np.ndarray  (agents/ODE only)
     """
 
     # Standard 5-year bins [0,5), [5,10), …, [95,100)
@@ -62,15 +64,22 @@ class AgeBinPopulation(ss.Analyzer):
         self.hist                 = {lbl: [] for lbl in self.labels}
         self.node_hist            = {}   # populated lazily on first step; keyed by node label
         self.node_infected_hist   = {}   # infected count per node per step
-        self.node_mosquito_hist   = {}   # mosquito count per node per step (agents mode only)
+        self.node_eir_hist        = {}   # EIR per node per step (bites/person/year)
+        self.node_mosquito_hist   = {}   # mosquito count per node per step (agents/ODE only)
         self.ode_age_hist         = {}   # ODE age-bin totals; keyed by bin label (e.g. '0-5')
+        self.births_hist          = []   # births per step
+        self.deaths_hist          = []   # deaths per step
 
     def step(self):
         disease = self.sim.diseases[0]
 
         # ODE human manages its own compartments — skip the agent-based age bins.
         if isinstance(disease, MalariaHumanODE):
-            n_ode = int(round((disease._Sh + disease._Ih).sum())) if disease._Sh is not None else 0
+            n_bins  = disease._n_bins
+            n_nodes = disease._Sh.raw.size // n_bins
+            Sh_mat  = disease._Sh.raw.reshape(n_nodes, n_bins)
+            Ih_mat  = disease._Ih.raw.reshape(n_nodes, n_bins)
+            n_ode   = int(round((Sh_mat + Ih_mat).sum()))
             for lbl in self.labels[:-1]:  # 20 five-year age bins
                 self.hist[lbl].append(0)
             self.hist['Total'].append(n_ode)
@@ -82,7 +91,7 @@ class AgeBinPopulation(ss.Analyzer):
                     for i in range(len(edges) - 1):
                         lbl = f'{int(edges[i])}-{int(edges[i+1])}'
                         self.ode_age_hist[lbl] = []
-                bin_totals = (disease._Sh + disease._Ih).sum(axis=0)
+                bin_totals = (Sh_mat + Ih_mat).sum(axis=0)  # shape (n_bins,)
                 for lbl, val in zip(self.ode_age_hist, bin_totals):
                     self.ode_age_hist[lbl].append(float(val))
         else:
@@ -108,8 +117,12 @@ class AgeBinPopulation(ss.Analyzer):
                 self.node_hist[lbl]          = []
                 self.node_infected_hist[lbl] = []
         if isinstance(disease, MalariaHumanODE):
-            n_per_node     = (disease._Sh + disease._Ih).sum(axis=1)  # (n_nodes,)
-            n_inf_per_node = disease._Ih.sum(axis=1)
+            n_bins_nd      = disease._n_bins
+            n_nodes_nd     = disease._Sh.raw.size // n_bins_nd
+            Sh_nd          = disease._Sh.raw.reshape(n_nodes_nd, n_bins_nd)
+            Ih_nd          = disease._Ih.raw.reshape(n_nodes_nd, n_bins_nd)
+            n_per_node     = (Sh_nd + Ih_nd).sum(axis=1)  # (n_nodes,)
+            n_inf_per_node = Ih_nd.sum(axis=1)
         else:
             node_id  = np.asarray(disease.node_id.values, dtype=int)
             infected = np.asarray(disease.infected.values, dtype=bool)
@@ -118,6 +131,26 @@ class AgeBinPopulation(ss.Analyzer):
         for nid, lbl in enumerate(ns.grid.labels):
             self.node_hist[lbl].append(float(n_per_node[nid]))
             self.node_infected_hist[lbl].append(float(n_inf_per_node[nid]))
+
+        # --- per-node EIR (annualized) ---
+        if not self.node_eir_hist:
+            for lbl in ns.grid.labels:
+                self.node_eir_hist[lbl] = []
+        dt_years = self.sim.t.dt_year
+        for nid, lbl in enumerate(ns.grid.labels):
+            eir_per_step = float(ns.eir_indoor[nid] + ns.eir_outdoor[nid])
+            self.node_eir_hist[lbl].append(eir_per_step / dt_years)
+
+        # --- births and deaths per step ---
+        n_births = 0
+        n_deaths = 0
+        for mod in self.sim.demographics.values():
+            if hasattr(mod, 'n_births_this_step'):
+                n_births += mod.n_births_this_step
+            if hasattr(mod, 'n_deaths'):
+                n_deaths += mod.n_deaths
+        self.births_hist.append(n_births)
+        self.deaths_hist.append(n_deaths)
 
         # --- per-node mosquito counts (ABM or ODE mode) ---
         mos_mod = next(
@@ -143,10 +176,14 @@ class AgeBinPopulation(ss.Analyzer):
         for lbl in self.node_hist:
             self.node_hist[lbl]          = np.array(self.node_hist[lbl])
             self.node_infected_hist[lbl] = np.array(self.node_infected_hist[lbl])
+        for lbl in self.node_eir_hist:
+            self.node_eir_hist[lbl] = np.array(self.node_eir_hist[lbl])
         for lbl in self.node_mosquito_hist:
             self.node_mosquito_hist[lbl] = np.array(self.node_mosquito_hist[lbl])
         for lbl in self.ode_age_hist:
             self.ode_age_hist[lbl] = np.array(self.ode_age_hist[lbl])
+        self.births_hist = np.array(self.births_hist)
+        self.deaths_hist = np.array(self.deaths_hist)
 
 
 # ------------------------------------------------------------------
@@ -182,10 +219,11 @@ class MalariaMultiSim(ss.MultiSim):
     # -- individual plot methods
     # -------------------------------------------------------------
 
-    def plot_prevalence(self, show_plots=False, do_save=True):
+    def plot_prevalence(self, show_plots=False, do_save=True, prefix=''):
         """Grid: total and per-node prevalence for each sim."""
         nrows, ncols = sc.getrowscols(len(self.sims))
         fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), sharex=True, sharey=True)
+        axes = np.atleast_2d(axes)
         fig.suptitle('Malaria prevalence — model comparison', fontsize=13)
 
         for ax, sim in zip(axes.flat, self.sims):
@@ -217,12 +255,13 @@ class MalariaMultiSim(ss.MultiSim):
         for ax in axes.flat[len(self.sims):]:
             ax.set_visible(False)
 
-        self._save('malaria_prevalence.png', show_plots=show_plots, do_save=do_save)
+        self._save(f'{prefix}malaria_prevalence.png', show_plots=show_plots, do_save=do_save)
 
-    def plot_compartments(self, show_plots=False, do_save=True):
+    def plot_compartments(self, show_plots=False, do_save=True, prefix=''):
         """Grid: S (E) I fractions for each sim."""
         nrows, ncols = sc.getrowscols(len(self.sims))
         fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), sharex=True, sharey=True)
+        axes = np.atleast_2d(axes)
         fig.suptitle('Malaria compartment fractions', fontsize=13)
 
         for ax, sim in zip(axes.flat, self.sims):
@@ -255,12 +294,13 @@ class MalariaMultiSim(ss.MultiSim):
         for ax in axes.flat[len(self.sims):]:
             ax.set_visible(False)
 
-        self._save('malaria_compartments.png',  show_plots=show_plots, do_save=do_save)
+        self._save(f'{prefix}malaria_compartments.png', show_plots=show_plots, do_save=do_save)
 
-    def plot_mosquito_sei(self, show_plots=False, do_save=True):
+    def plot_mosquito_sei(self, show_plots=False, do_save=True, prefix=''):
         """Grid: mosquito SEI compartments for each sim (EIR-only panels show placeholder text)."""
         nrows, ncols = sc.getrowscols(len(self.sims))
         fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), sharex=True)
+        axes = np.atleast_2d(axes)
         fig.suptitle('Mosquito SEI compartments', fontsize=13)
 
         for ax, sim in zip(axes.flat, self.sims):
@@ -290,12 +330,13 @@ class MalariaMultiSim(ss.MultiSim):
         for ax in axes.flat[len(self.sims):]:
             ax.set_visible(False)
 
-        self._save('malaria_mosquitoes.png',  show_plots=show_plots, do_save=do_save)
+        self._save(f'{prefix}malaria_mosquitoes_compartments.png', show_plots=show_plots, do_save=do_save)
 
-    def plot_mosquito_by_node(self, show_plots=False, do_save=True):
+    def plot_mosquito_by_node(self, show_plots=False, do_save=True, prefix=''):
         """Grid: mosquito count per node for each sim (EIR-only panels show placeholder text)."""
         nrows, ncols = sc.getrowscols(len(self.sims))
         fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), sharex=True, sharey=True)
+        axes = np.atleast_2d(axes)
         fig.suptitle('Mosquito count by node', fontsize=13)
 
         for ax, sim in zip(axes.flat, self.sims):
@@ -320,9 +361,32 @@ class MalariaMultiSim(ss.MultiSim):
         for ax in axes.flat[len(self.sims):]:
             ax.set_visible(False)
 
-        self._save('malaria_mosquitoes_by_node.png', show_plots=show_plots, do_save=do_save)
+        self._save(f'{prefix}malaria_mosquitoes_by_node.png', show_plots=show_plots, do_save=do_save)
 
-    def plot_age_bins(self, show_plots=False, do_save=True):
+    def plot_eir_by_node(self, show_plots=False, do_save=True, prefix=''):
+        """Grid: annualized EIR per node over time for each sim."""
+        nrows, ncols = sc.getrowscols(len(self.sims))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), sharex=True)
+        axes = np.atleast_2d(axes)
+        fig.suptitle('EIR by node', fontsize=13)
+
+        for ax, sim in zip(axes.flat, self.sims):
+            az      = sim.analyzers[0]
+            timevec = sim.results.timevec.years
+            ax.set_title(sim.label)
+            ax.set_xlabel('Year')
+            ax.set_ylabel('EIR (bites/person/year)')
+            ax.grid(True, alpha=0.3)
+            for (node_lbl, eir), color in zip(az.node_eir_hist.items(), NODE_COLORS):
+                ax.plot(timevec, eir, lw=1.5, color=color, label=node_lbl)
+            ax.legend(fontsize=8)
+
+        for ax in axes.flat[len(self.sims):]:
+            ax.set_visible(False)
+
+        self._save(f'{prefix}malaria_eir_by_node.png', show_plots=show_plots, do_save=do_save)
+
+    def plot_age_bins(self, show_plots=False, do_save=True, prefix=''):
         """One figure per sim: population by 5-year age bin + per-node totals."""
         for sim in self.sims:
             az      = sim.analyzers[0]
@@ -334,6 +398,7 @@ class MalariaMultiSim(ss.MultiSim):
                 n_plots  = len(az.ode_age_hist) + 1   # bins + total
                 NROWS, NCOLS = sc.getrowscols(n_plots)
                 fig, axes = plt.subplots(NROWS, NCOLS, figsize=(4 * NCOLS, 4 * NROWS), sharex=True)
+                axes = np.atleast_2d(axes)
                 fig.suptitle(f'Population by age bin (ODE) — {sim.label}', fontsize=14)
 
                 for ax, (lbl, counts) in zip(axes.flat, az.ode_age_hist.items()):
@@ -370,10 +435,11 @@ class MalariaMultiSim(ss.MultiSim):
                 ax.grid(True, alpha=0.3)
                 _plain_counts(ax)
             else:
-                n_plots = len(az.labels) + (1 if az.node_hist else 0)
+                n_plots = len(az.labels) + (1 if az.node_hist else 0) + 2
                 NROWS, NCOLS = sc.getrowscols(n_plots)
 
                 fig, axes = plt.subplots(NROWS, NCOLS, figsize=(4 * NCOLS, 4 * NROWS), sharex=True)
+                axes = np.atleast_2d(axes)
                 fig.suptitle(f'Population by 5-year age bin — {sim.label}', fontsize=14)
 
                 for ax, lbl in zip(axes.flat, az.labels):
@@ -385,7 +451,7 @@ class MalariaMultiSim(ss.MultiSim):
                     ax.grid(True, alpha=0.3)
                     _plain_counts(ax)
 
-                # 23rd slot: per-node population totals (one line per node)
+                # Next slot: per-node population totals
                 if az.node_hist:
                     ax_node = axes.flat[len(az.labels)]
                     for (node_lbl, counts), color in zip(az.node_hist.items(), NODE_COLORS):
@@ -401,10 +467,30 @@ class MalariaMultiSim(ss.MultiSim):
                 else:
                     hidden_start = len(az.labels)
 
+                ax_births = axes.flat[hidden_start]
+                ax_births.plot(timevec, az.births_hist, lw=1.2, color='steelblue')
+                ax_births.set_title('Births / step', fontsize=9)
+                ax_births.set_ylabel('Count', fontsize=7)
+                ax_births.set_xlabel('Year', fontsize=7)
+                ax_births.tick_params(labelsize=7)
+                ax_births.grid(True, alpha=0.3)
+                _plain_counts(ax_births)
+
+                ax_deaths = axes.flat[hidden_start + 1]
+                ax_deaths.plot(timevec, az.deaths_hist, lw=1.2, color='firebrick')
+                ax_deaths.set_title('Deaths / step', fontsize=9)
+                ax_deaths.set_ylabel('Count', fontsize=7)
+                ax_deaths.set_xlabel('Year', fontsize=7)
+                ax_deaths.tick_params(labelsize=7)
+                ax_deaths.grid(True, alpha=0.3)
+                _plain_counts(ax_deaths)
+
+                hidden_start += 2
+
                 for ax in axes.flat[hidden_start:]:
                     ax.set_visible(False)
 
-            self._save(f'malaria_age_bins_{sc.sanitizefilename(sim.label)}.png',
+            self._save(f'{prefix}malaria_age_bins_{sc.sanitizefilename(sim.label)}.png',
                          show_plots=show_plots,
                          do_save=do_save)
 
@@ -412,12 +498,18 @@ class MalariaMultiSim(ss.MultiSim):
     # -- entry point
     # -------------------------------------------------------------
 
-    def plot_all(self, show_plots=False, do_save=True):
+    def plot_all(self, show_plots=False, do_pop_plot=False, do_save=True, prefix='',
+                 do_compartments=False, do_mosquito_compartments=False, do_mosquito_by_node=True):
         """Generate all output charts and performance summaries."""
-        self.plot_prevalence(show_plots=show_plots, do_save=do_save)
-        self.plot_compartments(show_plots=show_plots, do_save=do_save)
-        self.plot_mosquito_sei(show_plots=show_plots, do_save=do_save)
-        self.plot_mosquito_by_node(show_plots=show_plots, do_save=do_save)
-        self.plot_age_bins(show_plots=show_plots, do_save=do_save)
+        self.plot_prevalence(show_plots=show_plots, do_save=do_save, prefix=prefix)
+        if do_compartments:
+            self.plot_compartments(show_plots=show_plots, do_save=do_save, prefix=prefix)
+        if do_mosquito_compartments:
+            self.plot_mosquito_sei(show_plots=show_plots, do_save=do_save, prefix=prefix)
+        if do_mosquito_by_node:
+            self.plot_mosquito_by_node(show_plots=show_plots, do_save=do_save, prefix=prefix)
+        self.plot_eir_by_node(show_plots=show_plots, do_save=do_save, prefix=prefix)
+        if do_pop_plot:
+            self.plot_age_bins(show_plots=show_plots, do_save=do_save, prefix=prefix)
         if self.monitor is not None:
-            self.monitor.plot(show_plots=show_plots, do_save=do_save)
+            self.monitor.plot(out_prefix=prefix + 'perf', show_plots=show_plots, do_save=do_save)

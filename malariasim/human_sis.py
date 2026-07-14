@@ -38,8 +38,10 @@ class MalariaHumanSIS(MalariaHumanBase):
         )
     """
 
-    def __init__(self, pars=None, **kwargs):
+    def __init__(self, common_pars=None, pars=None, **kwargs):
         super().__init__()
+        if common_pars is not None:
+            self.update_pars(self.pars_from(common_pars))
         self.update_pars(pars, **kwargs)
         # ss.SIS.set_prognoses draws duration from self.pars.dur_inf.
         # Point it at the same object as infection_duration_years so that

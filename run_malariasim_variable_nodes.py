@@ -194,7 +194,7 @@ def run_variable_nodes(
             label        = label,
             rand_seed    = 0,
             demographics = DEMOGRAPHICS,
-            analyzers    = ms.AgeBinPopulation(),
+            analyzers    = ms.ResultsAnalyzer(),
             **scen,
         )
         sims.append(sim)

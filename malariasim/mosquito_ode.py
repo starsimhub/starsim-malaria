@@ -194,16 +194,20 @@ class MosquitoesODE(ss.Module):
             f        = (ns.grid.f_indoor[nid]
                         if ns.grid.f_indoor is not None
                         else p.f_indoor)
-            lambda_m = a * (f * ns.p_inf_indoor[nid]
-                            + (1.0 - f) * ns.p_inf_outdoor[nid])
+            itn_br       = ns.itn_biting_reduction[nid]
+            mu_itn       = a * f * ns.itn_kill_prob[nid]   # only indoor-feeding mosquitoes encounter the net
+            a_eff_indoor = a * f * (1.0 - itn_br)
+            a_outdoor    = a * (1.0 - f)
+            lambda_m     = a_eff_indoor * ns.p_inf_indoor[nid] + a_outdoor * ns.p_inf_outdoor[nid]
 
             Sm = self._Sm[nid]
             Em = self._Em[nid]
             Im = self._Im[nid]
 
-            dSm = births       - lambda_m * Sm - mu_m * Sm
-            dEm = lambda_m * Sm - sigma_m * Em  - mu_m * Em
-            dIm = sigma_m * Em  - mu_m * Im
+            mu_tot = mu_m + mu_itn
+            dSm = births        - lambda_m * Sm - mu_tot * Sm
+            dEm = lambda_m * Sm - sigma_m * Em  - mu_tot * Em
+            dIm = sigma_m * Em  - mu_tot * Im
 
             self._Sm[nid] = max(Sm + dSm * dt_days, 0.0)
             self._Em[nid] = max(Em + dEm * dt_days, 0.0)
@@ -238,15 +242,17 @@ class MosquitoesODE(ss.Module):
         a      = p.bites_per_female_per_day
         dt_days = self.dt.days
         n_h    = ns.n_humans
-        eir_dt = np.zeros(ns.grid.n_nodes)
-        live   = n_h > 0
-        eir_dt[live] = a * self._Im[live] * dt_days / n_h[live]
-
-        f_arr = (ns.grid.f_indoor
-                 if ns.grid.f_indoor is not None
-                 else p.f_indoor)
-        ns.eir_indoor[:]  = eir_dt * f_arr
-        ns.eir_outdoor[:] = eir_dt * (1.0 - f_arr)
+        _f    = ns.grid.f_indoor if ns.grid.f_indoor is not None else p.f_indoor
+        n_nodes = ns.grid.n_nodes
+        f_arr = np.full(n_nodes, _f) if np.isscalar(_f) else np.asarray(_f, dtype=float)
+        live           = n_h > 0
+        itn_br         = np.asarray(ns.itn_biting_reduction)
+        eir_indoor_dt  = np.zeros(ns.grid.n_nodes)
+        eir_outdoor_dt = np.zeros(ns.grid.n_nodes)
+        eir_indoor_dt[live]  = a * f_arr[live] * (1.0 - itn_br[live]) * self._Im[live] * dt_days / n_h[live]
+        eir_outdoor_dt[live] = a * (1.0 - f_arr[live])                 * self._Im[live] * dt_days / n_h[live]
+        ns.eir_indoor[:]  = eir_indoor_dt
+        ns.eir_outdoor[:] = eir_outdoor_dt
         return
 
     def _emergence_rate_for_node(self, grid, nid, t):

@@ -73,7 +73,7 @@ class MalariaHumanSEIS(MalariaHumanBase):
         human = MalariaHumanSEIS(dur_exp=ss.normal(loc=10/365, scale=1/365))
     """
 
-    def __init__(self, pars=None, **kwargs):
+    def __init__(self, common_pars=None, pars=None, **kwargs):
         super().__init__()
         self.define_pars(
             # Exposed (incubation) period.
@@ -81,6 +81,8 @@ class MalariaHumanSEIS(MalariaHumanBase):
             # Values are in years; set_prognoses converts to timesteps via dt_year.
             dur_exp = ss.normal(loc=12/365, scale=2/365),
         )
+        if common_pars is not None:
+            self.update_pars(self.pars_from(common_pars))
         self.update_pars(pars, **kwargs)
         # ss.SIS.set_prognoses draws duration from self.pars.dur_inf.
         # Point it at infection_duration_years so user overrides are respected.

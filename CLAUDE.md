@@ -15,18 +15,27 @@ Starsim-NGM contains four malaria model implementations of increasing complexity
 
 Entry points: `run_malaria_demo.py`, `run_malaria_hybrid.py`, `run_malaria_sslaser.py`, `run_malariasim.py`.
 
+## Environment
+
+The Python virtual environment is in the `env/` directory. Always use `env/Scripts/python.exe` to run Python or pytest:
+
+```bash
+env/Scripts/python.exe -m pytest
+env/Scripts/python.exe run_malariasim.py
+```
+
 ## Commands
 
 ```bash
 # Install (editable mode)
-pip install -e .
+env/Scripts/python.exe -m pip install -e .
 
 # Install with dev dependencies
-pip install -e ".[dev]"
+env/Scripts/python.exe -m pip install -e ".[dev]"
 
 # Run a specific model
-python run_malaria_hybrid.py
-python run_malariasim.py
+env/Scripts/python.exe run_malaria_hybrid.py
+env/Scripts/python.exe run_malariasim.py
 
 # Run tests
 pytest

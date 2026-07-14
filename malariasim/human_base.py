@@ -35,8 +35,16 @@ To create a new variant, inherit from MalariaHumanBase and override:
       fundamentally different mechanisms (e.g. explicit per-bite tracking).
 """
 
+from enum import Enum
+
 import numpy as np
 import starsim as ss
+
+
+class BiteTarget(Enum):
+    INDOOR  = 'indoor'
+    OUTDOOR = 'outdoor'
+    ALL     = 'all'
 
 _NORMAL_BODY_TEMP_F = 98.6   # normal human body temperature (°F)
 
@@ -76,9 +84,11 @@ class MalariaHumanBase(ss.SIS):
 
     Parameters
     ----------
-    infection_duration_years : ss.normal
-        Duration of infection in years.
-        Default: Normal(mean=200 days, sd=30 days).
+    infection_duration_years : ss.lognorm_ex
+        Duration of the infectious period in years (the window during which
+        the agent can transmit to mosquitoes). Log-normal with arithmetic
+        mean ~200 days and std ~200 days by default — right-skewed to reflect
+        persistent P. falciparum infections that repeatedly seed gametocytes.
 
     prob_human_infected_on_bite : float
         Probability of human infection per infectious mosquito bite
@@ -132,9 +142,12 @@ class MalariaHumanBase(ss.SIS):
             # -------------------------------------------------------------------
 
             # Override SIS defaults with malaria-specific values.
-            infection_duration_years       = ss.normal(loc=200/365, scale=30/365),
+            # Log-normal infectious period: arithmetic mean ~200 days, std ~200 days.
+            # Right-skewed to reflect persistent low-density P. falciparum infections
+            # that continue to seed gametocytes long after acute illness resolves.
+            infection_duration_years       = ss.lognorm_ex(mean=200/365, std=200/365),
             p_death                        = ss.bernoulli(p=0.0),
-            init_prev                      = ss.bernoulli(p=0.01),
+            init_prev                      = ss.bernoulli(p=0),
             # Neutralize the ss.SIS immunity system — malaria immunity is not
             # modelled at this level. imm_boost=0 means no immunity accumulates,
             # so update_immunity() is a no-op every step.
@@ -169,6 +182,14 @@ class MalariaHumanBase(ss.SIS):
             p_inf_bite = ss.bernoulli(
                 p=lambda self, sim, uids: self._p_inf_bite_callable(sim, uids)
             ),
+
+            # Internal Bernoulli for campaign coverage sampling.
+            # p is overridden per-call in apply_coverage() so CRN is preserved.
+            _coverage_dist = ss.bernoulli(p=0.5),
+
+            # Drug clearance duration distribution.
+            # scale is set per-call in set_drug_clearance() so CRN is preserved.
+            dur_drug = ss.expon(scale=1.0),
         )
         # Subclasses call update_pars(pars, **kwargs) after adding their own pars.
 
@@ -193,12 +214,37 @@ class MalariaHumanBase(ss.SIS):
             ss.FloatArr('ti_dead',                                           label='Scheduled disease-death timestep (nan = none)'),
             ss.IntArr('node_id',                default=0,                   label='Spatial node index (0 when no NodeState)'),
         )
+        self.define_intervention_states()
 
         # (eir_total_dt is no longer cached here — _p_inf_bite_callable reads
         # per-node EIR directly from NodeState using each agent's node_id.)
         # NodeState — resolved once on first call to _get_node_state().
         self._ns_cache = None
+        # Flag: True after the initial population has been assigned to nodes exactly.
+        # Subsequent uninit agents (newborns) use probabilistic assignment.
+        self._initial_nodes_assigned = False
         return
+
+    # ------------------------------------------------------------------
+    # CommonParams integration
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def pars_from(cls, cp):
+        """Return a parameter dict built from a CommonParams instance.
+
+        Translates the common biological values into the ABM-specific
+        distribution types used by MalariaHumanBase and its subclasses.
+        MalariaHumanODE overrides this method with ODE-appropriate types.
+        """
+        return dict(
+            prob_human_infected_on_bite    = cp.prob_human_infected_on_bite,
+            prob_mosquito_infected_on_bite = cp.prob_mosquito_infected_on_bite,
+            infection_duration_years       = ss.lognorm_ex(
+                mean = cp.infection_duration_mean_days / 365.0,
+                std  = cp.infection_duration_std_days  / 365.0,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # step_state template - Disease progression
@@ -243,11 +289,43 @@ class MalariaHumanBase(ss.SIS):
                 self.biting_heterogeneity[uids] = 1.0
 
             # ----------------------------------------------------------------------------
-            # assign newborns to nodes according to pop_fractions (if NodeState is present)
+            # Assign agents to nodes.
+            # Initial population: exact counts matching NodeGrid.populations so that
+            # node 0 starts with exactly populations[0] people, node 1 with
+            # populations[1], etc.  The assignment is shuffled so node membership is
+            # not correlated with UID order.
+            # Newborns (every subsequent uninit cohort): probabilistic assignment using
+            # pop_fractions so node sizes remain stable over time.
             # ----------------------------------------------------------------------------
             ns    = self._get_node_state()
-            fracs = ns.grid.pop_fractions
-            self.node_id[uids] = np.random.choice(len(fracs), size=len(uids), p=fracs)
+            grid  = ns.grid
+            if not self._initial_nodes_assigned and grid.populations is not None:
+                self._initial_nodes_assigned = True
+                # Split uninit agents into the initial population (UIDs below
+                # total_population) and any same-step newborns (UIDs at or above
+                # total_population, born by demographics before step_state runs).
+                uid_arr    = np.asarray(uids, dtype=int)
+                n_initial  = grid.total_population
+                init_mask  = uid_arr < n_initial
+                init_uids  = uids[init_mask]
+                birth_uids = uids[~init_mask]
+
+                # Exact assignment for the initial population.
+                labels = np.repeat(np.arange(grid.n_nodes, dtype=int), grid.populations)
+                np.random.shuffle(labels)
+                # init_uids and labels are both length n_initial; direct 1-to-1 assignment.
+                self.node_id[init_uids] = labels
+
+                # Probabilistic assignment for any same-step newborns.
+                if len(birth_uids):
+                    self.node_id[birth_uids] = np.random.choice(
+                        grid.n_nodes, size=len(birth_uids), p=grid.pop_fractions
+                    )
+            else:
+                self._initial_nodes_assigned = True
+                self.node_id[uids] = np.random.choice(
+                    grid.n_nodes, size=len(uids), p=grid.pop_fractions
+                )
 
         self._update_rel_biting_rate()
         return
@@ -273,6 +351,7 @@ class MalariaHumanBase(ss.SIS):
         # self.update_immunity()
         # ---------------------------------------------------------------
 
+        self.reset_acquisition_probability()
         return
 
     def _malaria_post_step_state(self):
@@ -404,6 +483,102 @@ class MalariaHumanBase(ss.SIS):
         return
 
     # ------------------------------------------------------------------
+    # Intervention interface (shared contract with MalariaHumanODE)
+    # ------------------------------------------------------------------
+
+    # Duck-type marker: WaningEffectUpdater and MalariaVaccineUpdater search
+    # sim.diseases for this attribute to identify the compatible human module.
+    _supports_intervention_effects = True
+
+    def define_intervention_states(self):
+        """Add intervention state arrays. Called from __init__ so subclasses can override."""
+        self.define_states(
+            ss.FloatArr('_prob_acquire_indoor',  default=1.0, label='Indoor acquisition probability multiplier (1.0 = no effect)'),
+            ss.FloatArr('_prob_acquire_outdoor', default=1.0, label='Outdoor acquisition probability multiplier (1.0 = no effect)'),
+        )
+
+    def initialize_intervention_states(self):
+        """No-op for ABM — FloatArr states are already sized by People at init time."""
+        pass
+
+    def reset_acquisition_probability(self):
+        """Reset both _prob_acquire arrays to 1.0 for all alive agents before connectors run."""
+        auids = self.sim.people.auids
+        self._prob_acquire_indoor[auids]  = 1.0
+        self._prob_acquire_outdoor[auids] = 1.0
+
+    def set_acquisition_probability(self, uids, efficacy, weights, target=BiteTarget.ALL):
+        """Reduce indoor and/or outdoor acquisition probability. Vaccine uses ALL; bednet uses INDOOR."""
+        reduction = 1.0 - efficacy * weights
+        if target in (BiteTarget.ALL, BiteTarget.INDOOR):
+            self._prob_acquire_indoor[uids]  *= reduction
+        if target in (BiteTarget.ALL, BiteTarget.OUTDOOR):
+            self._prob_acquire_outdoor[uids] *= reduction
+
+    def pre_administer(self, uids, weights, t_now):
+        """Return per-uid effective dose time. ABM: all agents dosed at t_now."""
+        return np.full(len(uids), t_now, dtype=float)
+
+    def sync_vaccinated_fraction(self, uids, efficacy):
+        """No-op for ABM — no fraction tracking state to reset."""
+        pass
+
+    def get_vaccinated_weights(self, uids):
+        """Return per-uid weights. ABM: all agents fully weighted."""
+        return np.ones(len(uids), dtype=float)
+
+    def store_itn_fraction(self, uids, weights):
+        """No-op for ABM — coverage is implicit in which agents are active."""
+        pass
+
+    def get_itn_weights(self, uids):
+        """Return per-uid ITN weights. ABM: each covered agent is fully weighted."""
+        return np.ones(len(uids), dtype=float)
+
+    def aggregate_itn_to_node_state(self, uids, combined_block, u_kill, ns):
+        """Aggregate ITN effects to NodeState. ABM: each agent counts as one person."""
+        node_ids = np.asarray(self.node_id[uids], dtype=int)
+        n_total  = np.maximum(np.asarray(ns.n_humans, dtype=float), 1.0)
+        ns.itn_biting_reduction += np.bincount(node_ids, weights=combined_block, minlength=ns.grid.n_nodes) / n_total
+        ns.itn_kill_prob        += np.bincount(node_ids, weights=u_kill,         minlength=ns.grid.n_nodes) / n_total
+
+    def set_drug_clearance(self, uids, mean_duration_years, weights):
+        """
+        Clear active infections via drug for agents at ``uids``.
+
+        Draws exponential clearance durations (scale = mean_duration_years) and
+        overwrites ``ti_recovered`` so the SIS recovery loop clears the infection
+        at the drawn time.  Susceptible and exposed agents are no-ops.  Weights
+        are ignored — the ABM's bernoulli in ``apply_coverage`` already selected
+        only covered agents, each receiving a full dose.
+        """
+        infected = np.asarray(self.infected[uids], dtype=bool)
+        targets  = ss.uids(np.asarray(uids)[infected])
+        if not len(targets):
+            return
+        dt_year  = self.sim.t.dt_year
+        self.pars.dur_drug.set(scale=mean_duration_years)
+        dur_steps = self.pars.dur_drug.rvs(targets) / dt_year
+        self.ti_recovered[targets] = self.sim.ti + dur_steps
+
+    def administer_outbreak(self, uids, weights):
+        """Infect susceptible agents. ABM: Bernoulli already applied; weights are 1.0."""
+        susceptible = np.asarray(self.susceptible[uids], dtype=bool)
+        targets = ss.uids(np.asarray(uids)[susceptible])
+        if len(targets):
+            self.set_prognoses(targets, sources=None)
+
+    def apply_coverage(self, uids, coverage):
+        """Sample coverage from eligible agents via Bernoulli. Returns (chosen, ones)."""
+        self.pars._coverage_dist.set(p=float(coverage))
+        chosen = self.pars._coverage_dist.filter(uids)
+        return chosen, np.ones(len(chosen), dtype=float)
+
+    def validate_eligibility(self, eligibility):
+        """No-op for ABM — no structural constraints on age targeting."""
+        pass
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -426,8 +601,9 @@ class MalariaHumanBase(ss.SIS):
         # ----------------------------------------------------------------
         ns       = self._get_node_state()
         node_ids = np.asarray(self.node_id[uids], dtype=int)
-        eir      = np.asarray(ns.eir_indoor)[node_ids] + np.asarray(ns.eir_outdoor)[node_ids]
-        p = eir * float(self.pars.prob_human_infected_on_bite) * np.asarray(self.rel_biting_rate[uids], dtype=float)
+        eir_in   = np.asarray(ns.eir_indoor)[node_ids]  * np.asarray(self._prob_acquire_indoor[uids])
+        eir_out  = np.asarray(ns.eir_outdoor)[node_ids] * np.asarray(self._prob_acquire_outdoor[uids])
+        p = (eir_in + eir_out) * float(self.pars.prob_human_infected_on_bite) * np.asarray(self.rel_biting_rate[uids], dtype=float)
         return np.clip(p, 0.0, 1.0)
 
     def _update_rel_biting_rate(self):

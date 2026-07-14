@@ -29,11 +29,52 @@ Helper functions
     so agent initialisation and mortality are in demographic equilibrium.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 import starsim as ss
 
 from .demographics import compute_mortality_schedule
+
+
+# ------------------------------------------------------------------
+# Shared biological parameters
+# ------------------------------------------------------------------
+
+@dataclass
+class CommonParams:
+    """
+    Canonical biological parameters shared across all MalariaHuman model variants.
+
+    Each human disease module has a ``pars_from(cp)`` classmethod that translates
+    these values into the model-specific parameter dict (e.g. converting
+    ``infection_duration_mean_days`` into ``ss.lognorm_ex`` for ABM models or ``ss.days``
+    for the ODE model).
+
+    Parameters
+    ----------
+    prob_human_infected_on_bite : float
+        Probability of human infection per infectious mosquito bite
+        (Ross-Macdonald *b*). Default: 1.0.
+    prob_mosquito_infected_on_bite : float
+        Probability of mosquito infection per bite on an infectious human
+        (Ross-Macdonald *c*). Default: 1.0.
+    infection_duration_mean_days : float
+        Arithmetic mean of the infectious period in days. Default: 200.
+    infection_duration_std_days : float
+        Arithmetic standard deviation of the infectious period in days.
+        Used by ABM models to parameterize a log-normal duration distribution.
+        Ignored by ODE models which use the mean only. Default: 200.
+    """
+    prob_human_infected_on_bite:       float = 0.4     # Ross-Macdonald *b*
+    prob_mosquito_infected_on_bite:    float = 0.3     # Ross-Macdonald *c*
+    infection_duration_mean_days:      float = 200.0   # arithmetic mean of the infectious period
+    infection_duration_std_days:       float = 200.0   # arithmetic std dev (log-normal for ABM; ignored by ODE)
+    bites_per_female_per_day:          float = 0.03    # mosquito biting rate (a)
+    mosquito_life_expectancy_days:     float = 10.0    # mean adult female lifespan (1/μ)
+    mosquito_eip_days:                 float = 12.0    # extrinsic incubation period (1/σ)
+
 
 # ------------------------------------------------------------------
 # Age structure
@@ -55,9 +96,9 @@ AGE_BIN_FRACTIONS = [
 # ------------------------------------------------------------------
 
 # Monthly EIR (bites / person / month) for each node
-URBAN_EIR      = [5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5,  5]
+URBAN_EIR      = [1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1,  1]
 PERI_URBAN_EIR = [2,  2,  5,  6,  8, 10, 12,  8,  5,  3,  2,  2]
-RURAL_EIR      = [1,  1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1]
+RURAL_EIR      = [5,  5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5]
 
 # Monthly emergence (new adult females / human / day)
 URBAN_EMERGENCE      = [0.008, 0.008, 0.015, 0.030, 0.045, 0.060,
@@ -76,7 +117,7 @@ RURAL_F_INDOOR      = 0.55
 # Helper functions
 # ------------------------------------------------------------------
 
-def make_steady_state_demographics():
+def make_steady_state_demographics(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS):
     """
     Return a fresh ``[ss.Births, ss.Deaths]`` demographics list calibrated for
     a stable, representative population.
@@ -96,7 +137,7 @@ def make_steady_state_demographics():
         ``[ss.Births, ss.Deaths]`` ready to pass as ``demographics=`` to
         ``ms.Sim``.
     """
-    mu, _, birth_rate, max_age = compute_mortality_schedule(AGE_BIN_EDGES, AGE_BIN_FRACTIONS)
+    mu, _, birth_rate, max_age = compute_mortality_schedule(edges, fractions)
     births = ss.Births(birth_rate=ss.peryear(birth_rate * 1000))
     df = pd.DataFrame({
         'Time':        2000,
@@ -107,7 +148,7 @@ def make_steady_state_demographics():
     return [births, ss.Deaths(death_rate=df, rate_units=1, metadata=metadata)]
 
 
-def make_age_data():
+def make_age_data(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS):
     """
     Return a per-year age-distribution dataframe for initialising agent ages.
 
@@ -121,7 +162,7 @@ def make_age_data():
         Columns: ``age`` (int, 0–99) and ``value`` (float, relative weight).
         Suitable for ``ss.People(age_data=...)``.
     """
-    _, n, _, max_age = compute_mortality_schedule(AGE_BIN_EDGES, AGE_BIN_FRACTIONS)
+    _, n, _, max_age = compute_mortality_schedule(edges, fractions)
     return pd.DataFrame({'age': np.arange(max_age, dtype=int), 'value': n})
 
 

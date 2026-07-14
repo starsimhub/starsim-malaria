@@ -89,6 +89,7 @@ from .node_state        import NodeState
 from .sim               import Sim
 from .demographics      import compute_mortality_schedule
 from .defaults          import (
+    CommonParams,
     AGE_BIN_EDGES, AGE_BIN_FRACTIONS,
     URBAN_EIR, PERI_URBAN_EIR, RURAL_EIR,
     URBAN_EMERGENCE, PERI_URBAN_EMERGENCE, RURAL_EMERGENCE,
@@ -96,7 +97,21 @@ from .defaults          import (
     make_steady_state_demographics, make_age_data, make_mortality_dataframe,
 )
 from .performance       import PerformanceMonitor
-from .results           import AgeBinPopulation, MalariaMultiSim
+from .results           import ResultsAnalyzer, MalariaMultiSim
+from .updater                import Updater, Target
+from .updaters.waning        import WaningEffect, WaningEffectUpdater
+from .updaters.vaccine       import MalariaVaccine, MalariaVaccineUpdater
+from .updaters.bednet        import (
+    Bednet, BednetUpdater,
+    PREFIX_REPELLING, PREFIX_BLOCKING, PREFIX_KILLING, PREFIX_USAGE, ALL_PREFIXES,
+)
+from .human_base             import BiteTarget
+from .updaters.drug          import AntiMalarialDrug
+from .distributors.eligibility import Eligibility, HumanEligibility, NodeEligibility
+from .distributors.scheduled   import InterventionDistributor, InterventionDistributorScheduled
+from .campaign                 import Campaign
+from .outbreak                 import Outbreak
+from .utils                    import interpolate_monthly, eir_to_params
 
 __all__ = [
     'MalariaHumanBase',
@@ -116,10 +131,32 @@ __all__ = [
     'URBAN_F_INDOOR', 'PERI_URBAN_F_INDOOR', 'RURAL_F_INDOOR',
     'make_steady_state_demographics', 'make_age_data', 'make_mortality_dataframe',
     'PerformanceMonitor',
-    'AgeBinPopulation',
+    'ResultsAnalyzer',
     'MalariaMultiSim',
+    'Updater',
+    'Target',
+    'WaningEffect',
+    'WaningEffectUpdater',
+    'MalariaVaccine',
+    'MalariaVaccineUpdater',
+    'Bednet',
+    'BednetUpdater',
+    'BiteTarget',
+    'PREFIX_REPELLING',
+    'PREFIX_BLOCKING',
+    'PREFIX_KILLING',
+    'PREFIX_USAGE',
+    'ALL_PREFIXES',
+    'Eligibility',
+    'HumanEligibility',
+    'NodeEligibility',
+    'InterventionDistributor',
+    'InterventionDistributorScheduled',
+    'Campaign',
+    'Outbreak',
     'SYMPTOM_NONE',
     'SYMPTOM_CLINICAL',
     'SYMPTOM_SEVERE',
     'SYMPTOM_DISEASE_DEATH',
+    'CommonParams',
 ]

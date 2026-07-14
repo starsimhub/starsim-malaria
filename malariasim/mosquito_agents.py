@@ -209,8 +209,13 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         if total_new > 0:
             self._place_births(n_new_per_node, total_new, ns.grid.n_nodes)
 
+        # -----------------------------------
+        # 4. Intervention mosquito effects
+        # -----------------------------------
+        self._apply_itn_killing(ns)
+
         # -----------------------
-        # 4. Exposed → infectious
+        # 5. Exposed → infectious
         # -----------------------
         newly_infectious = self.alive & self.exposed & (self.ti_infectious <= self.ti)
         if newly_infectious.any():
@@ -218,17 +223,17 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             self.infectious[newly_infectious] = True
 
         # ----------------------------------------------------------
-        # 5. Human → mosquito transmission — vectorized over all nodes
+        # 6. Human → mosquito transmission — vectorized over all nodes
         # ----------------------------------------------------------
         sus_idx = np.where(self.alive & self.susceptible)[0]
         if len(sus_idx):
             self._expose_susceptible_mosquitoes(sus_idx, ns)
 
         # -----------------------------------
-        # 6. Results + write EIR to NodeState
+        # 7. Results + write EIR to NodeState
         # -----------------------------------
         alive_mask = self.alive
-        self._record_results(alive_mask, self.sim.people.alive.sum())
+        self._record_results(alive_mask, int(np.asarray(ns.n_humans).sum()))
         self._write_node_eir(ns, alive_mask)
         return
 
@@ -246,7 +251,11 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         dt_days = self.dt.days
         grid    = ns.grid
 
-        n_humans = int(self.sim.people.alive.sum())
+        # Use NodeState n_humans (written by ODE human module on this same step)
+        # rather than sim.people.alive.sum(), which gives n_nodes*n_bins dummy
+        # slots for ODE humans instead of the real population count.
+        n_h_per_node = np.asarray(ns.n_humans, dtype=float)
+        n_humans     = int(n_h_per_node.sum()) or int(self.sim.people.alive.sum())
 
         # Maximum emergence across all nodes.
         max_em = float(np.max(p.emergence))
@@ -269,7 +278,7 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         mean_ls  = p.life_expectancy.days / dt_days
         slot     = 0
         for nid in range(grid.n_nodes):
-            n_h_node       = int(round(n_humans * grid.pop_fractions[nid]))
+            n_h_node       = int(round(n_h_per_node[nid]))
             em_rate        = self._emergence_rate_for_node(grid, nid, t_frac)
             n_start_node   = min(int(round(em_rate * p.life_expectancy.days * n_h_node)),
                                  self._max_mos - slot)
@@ -280,6 +289,29 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
             self.ti_dead[slot:end]     = np.random.exponential(mean_ls, n_start_node).astype(int)
             slot = end
         return
+
+    def _apply_itn_killing(self, ns):
+        """Extra mortality from insecticide contact for all alive mosquitoes."""
+        alive_idx = np.where(self.alive)[0]
+        if not len(alive_idx):
+            return
+        itn_kp = np.asarray(ns.itn_kill_prob)
+        if not itn_kp.any():
+            return
+        nids  = self.node_id[alive_idx]
+        f_arr = (np.asarray(ns.grid.f_indoor)
+                 if ns.grid.f_indoor is not None
+                 else np.full(ns.grid.n_nodes, self.pars.f_indoor))
+        p_kill = np.clip(
+            self.pars.bites_per_female_per_day * self.dt.days * f_arr[nids] * itn_kp[nids],
+            0.0, 1.0,
+        )
+        killed_local = np.where(np.random.random(len(alive_idx)) < p_kill)[0]
+        if not len(killed_local):
+            return
+        kill_mask = np.zeros(self._max_mos, dtype=bool)
+        kill_mask[alive_idx[killed_local]] = True
+        self._kill_mosquitoes(kill_mask)
 
     def _kill_mosquitoes(self, dying):
         """Mark dead mosquitoes as inactive, freeing their slots for new births."""
@@ -331,14 +363,17 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         inf_node_ids   = self.node_id[alive_mask & self.infectious]
         n_inf_per_node = np.bincount(inf_node_ids, minlength=n_nodes).astype(float)
         n_h            = ns.n_humans
-        eir_dt         = np.zeros(n_nodes)
         live           = n_h > 0
-        eir_dt[live]   = n_inf_per_node[live] * p.bites_per_female_per_day * dt_days / n_h[live]
-        f_arr          = (ns.grid.f_indoor
-                          if ns.grid.f_indoor is not None
-                          else p.f_indoor)
-        ns.eir_indoor[:]  = eir_dt * f_arr
-        ns.eir_outdoor[:] = eir_dt * (1.0 - f_arr)
+        _f    = ns.grid.f_indoor if ns.grid.f_indoor is not None else p.f_indoor
+        f_arr = np.full(n_nodes, _f) if np.isscalar(_f) else np.asarray(_f, dtype=float)
+        itn_br         = np.asarray(ns.itn_biting_reduction)
+        a              = p.bites_per_female_per_day
+        eir_indoor_dt  = np.zeros(n_nodes)
+        eir_outdoor_dt = np.zeros(n_nodes)
+        eir_indoor_dt[live]  = n_inf_per_node[live] * a * f_arr[live] * (1.0 - itn_br[live]) * dt_days / n_h[live]
+        eir_outdoor_dt[live] = n_inf_per_node[live] * a * (1.0 - f_arr[live])                 * dt_days / n_h[live]
+        ns.eir_indoor[:]  = eir_indoor_dt
+        ns.eir_outdoor[:] = eir_outdoor_dt
         return
 
     def _expose_susceptible_mosquitoes(self, sus_idx, ns):
@@ -361,11 +396,16 @@ class MosquitoesAdultFemaleAgentsOnly(ss.Module):
         f_arr   = (ns.grid.f_indoor[nids]
                    if ns.grid.f_indoor is not None
                    else p.f_indoor)
-        p_bite        = min(p.bites_per_female_per_day * dt_days, 1.0)
+        p_bite        = p.bites_per_female_per_day * dt_days
+        itn_br        = np.asarray(ns.itn_biting_reduction)[nids]
+        p_bite_indoor = np.clip(p_bite * (1.0 - itn_br), 0.0, 1.0)
+        p_bite_out    = min(p_bite, 1.0)
         bites_indoor  = np.random.random(len(sus_idx)) < f_arr
         p_inf_indoor  = ns.p_inf_indoor[nids]
         p_inf_outdoor = ns.p_inf_outdoor[nids]
-        p_exposed     = np.where(bites_indoor, p_bite * p_inf_indoor, p_bite * p_inf_outdoor)
+        p_exposed     = np.where(bites_indoor,
+                                 p_bite_indoor * p_inf_indoor,
+                                 p_bite_out    * p_inf_outdoor)
         new_idx       = sus_idx[np.random.random(len(sus_idx)) < p_exposed]
         if len(new_idx):
             self.susceptible[new_idx]   = False

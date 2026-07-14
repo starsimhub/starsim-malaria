@@ -54,8 +54,19 @@ class NodeState(ss.Module):
         self.p_inf_indoor  = np.zeros(n)
         self.p_inf_outdoor = np.zeros(n)
         self.n_humans      = np.zeros(n, dtype=int)
+
+        # Written by BednetUpdater each step (via disease.aggregate_itn_to_node_state());
+        # read by mosquito modules same step.
+        # Both default to 0.0 (no ITN effect) and are reset each step before BednetUpdater runs.
+        # itn_biting_reduction : fraction of bite attempts blocked per node ∈ [0,1]
+        # itn_kill_prob        : kill probability per bite attempt ∈ [0,1]
+        #                        — mosquito module multiplies by a*dt to get per-step kill fraction
+        self.itn_biting_reduction = np.zeros(n)
+        self.itn_kill_prob        = np.zeros(n)
         return
 
     def step(self):
-        """Ordering anchor — no state changes needed."""
+        """Reset ITN fields and serve as ordering anchor between human and mosquito steps."""
+        self.itn_biting_reduction[:] = 0.0
+        self.itn_kill_prob[:]        = 0.0
         return

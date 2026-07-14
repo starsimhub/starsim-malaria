@@ -94,6 +94,7 @@ class NodeGrid:
         # --------------------------------
         if populations is None:
             self.n_nodes          = 1
+            self.populations      = None
             self.pop_fractions    = np.ones(1)
             self.total_population = None
         else:
@@ -103,6 +104,7 @@ class NodeGrid:
             if np.any(pops <= 0):
                 raise ValueError('All populations must be positive')
             self.n_nodes          = len(pops)
+            self.populations      = pops.astype(int)
             self.pop_fractions    = pops / pops.sum()
             self.total_population = int(pops.sum())
 

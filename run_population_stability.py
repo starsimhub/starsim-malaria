@@ -58,7 +58,7 @@ def run_stability(n_seeds=N_SEEDS, n_years=N_YEARS, n_agents=N_AGENTS):
             dt            = ss.days(1),
             nodes         = nodes,
             demographics  = ms.make_steady_state_demographics(),
-            analyzers     = ms.AgeBinPopulation(),
+            analyzers     = ms.ResultsAnalyzer(),
             rand_seed     = seed,
             label         = f'seed {seed}',
             verbose       = 0,
