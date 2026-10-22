@@ -1,0 +1,7 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+two sets of states, ode: prev y3 0.4962; I1 177.6, I2 10.6; M1 916, M2 229
+stratify(species=...), ode: prev y3 0.5067; Iv by species [179.9, 10.8]
+two sets of states, abm: prev y3 0.4885; I1 175.6, I2 10.5; M1 916, M2 229
+stratify(species=...), abm: prev y3 0.4970; Iv by species [177.6, 10.7]
+stratify with adjust infection by species: InvalidAdjustment the adjustment of "infection" by "species" cannot apply, since the people it moves (Sh) have no level of "species". To make where they arrive depend on it, give "species" a split instead.

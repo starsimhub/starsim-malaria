@@ -1,0 +1,39 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+{}                                                     : best of 2 after warm-up 5.29s (2.90 ms/step)
+{'seasonal': False}                                    : best of 2 after warm-up 4.84s (2.65 ms/step)
+{'age': False, 'demog': False}                         : best of 2 after warm-up 2.38s (1.30 ms/step)
+{'age': False, 'demog': False, 'seasonal': False}      : best of 2 after warm-up 1.84s (1.01 ms/step)
+         19641595 function calls (19452920 primitive calls) in 12.440 seconds
+
+   Ordered by: cumulative time
+   List reduced from 862 to 25 due to restriction <25>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   12.440   12.440 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/sim.py:2312(run)
+        1    0.033    0.033   12.233   12.233 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/loop.py:409(run)
+     1825    0.010    0.000   11.374    0.006 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/diseases.py:334(step)
+     1825    0.414    0.000   11.274    0.006 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:4507(step_state)
+58414/18254    0.099    0.000    7.557    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:380(evaluate)
+     9124    0.007    0.000    7.475    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:1914(eval)
+     7299    0.018    0.000    7.384    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:4302(eval_for)
+    18249    0.037    0.000    7.315    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:4286(value)
+    10949    0.110    0.000    7.215    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:4281(by_group)
+    10949    0.015    0.000    7.012    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:1599(by_group)
+    10949    0.030    0.000    6.997    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:2551(per_group)
+    10949    0.152    0.000    6.940    0.001 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:2516(grid)
+    94880    0.062    0.000    5.829    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:2524(<lambda>)
+    94884    0.041    0.000    4.557    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:1452(convert)
+    94888    0.075    0.000    4.516    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/solvers.py:40(convert)
+    83931    0.276    0.000    4.423    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/time.py:1755(to)
+   335790    0.392    0.000    2.515    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/time.py:2411(get_unit_class)
+   929511    0.433    0.000    2.170    0.000 /software/conda/envs/ngm/lib/python3.13/site-packages/sciris/sc_odict.py:1247(__getitem__)
+   116691    0.104    0.000    1.766    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/time.py:2257(__init__)
+   929511    0.518    0.000    1.737    0.000 /software/conda/envs/ngm/lib/python3.13/site-packages/sciris/sc_odict.py:170(__getitem__)
+   116691    0.296    0.000    1.541    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/time.py:1675(__init__)
+    10950    0.013    0.000    1.198    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:2585(__call__)
+    10950    0.069    0.000    1.149    0.000 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/transitions.py:2688(at)
+    83931    0.061    0.000    0.912    0.000 /software/conda/envs/ngm/lib/python3.13/site-packages/sciris/sc_utils.py:1746(newlinejoin)
+    83931    0.363    0.000    0.850    0.000 /software/conda/envs/ngm/lib/python3.13/site-packages/sciris/sc_utils.py:1719(strjoin)
+
+
+

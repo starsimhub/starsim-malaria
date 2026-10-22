@@ -1,0 +1,7 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+v3 reference: N end 4995; nodes end [2014. 1502. 1480.]; prev by node [0.4583 0.5657 0.6366] +/- [0.003  0.0029 0.0023]; tvd 0.030
+abm/modules: N 5000 -> 4954; nodes end [3353.  799.  802.]; prev by node [0.44   0.543  0.6118] +/- [0.0019 0.0036 0.0028]; tvd 0.032; time 3.34s (first run includes compile)
+abm/declared: N 5000 -> 4978; nodes end [2026. 1462. 1490.]; prev by node [0.4405 0.5405 0.6101] +/- [0.0021 0.0025 0.0018]; tvd 0.033; time 4.07s (first run includes compile)
+abm/lifetable: N 5000 -> 4916; nodes end [1995. 1450. 1471.]; prev by node [0.441  0.5374 0.6104] +/- [0.0056 0.0037 0.0042]; tvd 0.032; time 5.53s (first run includes compile)
+ode/declared: N 5000 -> 4564; nodes end [1826. 1369. 1369.]; prev by node [0.4496 0.5504 0.62  ] +/- [0. 0. 0.]; tvd 0.119; time 3.13s (first run includes compile)
+ode/lifetable: N 5000 -> 4550; nodes end [1820. 1365. 1365.]; prev by node [0.4496 0.5504 0.62  ] +/- [0. 0. 0.]; tvd 0.120; time 3.21s (first run includes compile)

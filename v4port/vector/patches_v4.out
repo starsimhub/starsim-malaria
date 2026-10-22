@@ -1,0 +1,19 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+  note: the dimension "patch" is plain, so its levels mix; for places, give them as ss.geo(names=[...]) or pass kind="space"
+solver: ode (requested)
+  note: state 'Sv' treated as a count, not people (no transition connects Sv to Sh)
+  note: state 'Ev' treated as a count, not people (no transition connects Ev to Sh)
+  note: state 'Iv' treated as a count, not people (no transition connects Iv to Sh)
+  note: recovery has a lognorm_ex dwell time, approximated by 1 Erlang stage (mean 200 days kept; std 200 instead of 200 days)
+kind=None, ode: prevalence y3 by patch [0.485, 0.485]; Sv by patch: not by patch (The result "n_Sv" is not stratified, so there is nothing to select); total 530
+kind=None, abm: prevalence y3 by patch [0.4746, 0.4774]; Sv by patch: not by patch (The result "n_Sv" is not stratified, so there is nothing to select); total 535
+solver: ode (requested)
+  note: state 'Sv' treated as a count, not people (no transition connects Sv to Sh)
+  note: state 'Ev' treated as a count, not people (no transition connects Ev to Sh)
+  note: state 'Iv' treated as a count, not people (no transition connects Iv to Sh)
+  note: recovery has a lognorm_ex dwell time, approximated by 1 Erlang stage (mean 200 days kept; std 200 instead of 200 days)
+kind=space, ode: prevalence y3 by patch [0.485, 0.0201]; Sv by patch: [265.0, 148.0]
+kind=space, abm: prevalence y3 by patch [0.4671, 0.0212]; Sv by patch: [271.0, 148.0]
+one patch alone, emergence x1.000 (ode): prevalence y3 0.4855
+one patch alone, emergence x0.333 (ode): prevalence y3 0.0198

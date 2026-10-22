@@ -1,0 +1,6 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+continuous-time equilibrium lam/(lam+r) = 0.5680
+v4 ode exp: prev 0.5680
+v4 ode lognorm: prev 0.5680
+v4 abm exp: prev 0.5628
+v4 abm lognorm: prev 0.5638

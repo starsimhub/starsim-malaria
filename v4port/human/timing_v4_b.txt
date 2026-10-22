@@ -1,0 +1,5 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+v4 sis  n= 10,000: warm-up 1.84 s, best of 3 1.79 s, all [1.84, 1.82, 1.79, 1.83]
+v4 seis n= 10,000: warm-up 2.29 s, best of 3 2.12 s, all [2.29, 2.49, 2.12, 2.15]
+v4 ode  n= 10,000: warm-up 1.08 s, best of 3 1.02 s, all [1.08, 1.02, 1.06, 1.07]
+v4 sis  n=100,000: warm-up 4.64 s, best of 3 4.65 s, all [4.64, 4.65, 4.66, 4.78]

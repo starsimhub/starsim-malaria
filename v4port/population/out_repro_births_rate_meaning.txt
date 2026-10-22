@@ -1,0 +1,4 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+a rate of 0.025768/y: N should grow to 16742; as an annual probability, to 16856
+ss.Births(birth_rate=ss.peryear(25.768)): N after 20 y 16850 +/- 28
+ss.birth(rate=ss.peryear(0.025768)): N after 20 y 16686 +/- 33

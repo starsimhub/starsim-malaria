@@ -1,0 +1,15 @@
+3.6.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/v3_f40175b4/starsim/__init__.py
+seed 0: n_end 4989 mean age 26.45->26.79 tvd 0.034 births 2556 deaths 2567 0.97s
+seed 1: n_end 4930 mean age 27.27->27.21 tvd 0.032 births 2580 deaths 2650 1.59s
+seed 2: n_end 5005 mean age 26.97->26.51 tvd 0.036 births 2635 deaths 2630 0.90s
+seed 3: n_end 5010 mean age 26.93->26.48 tvd 0.032 births 2666 deaths 2656 0.89s
+seed 4: n_end 5022 mean age 26.02->26.32 tvd 0.021 births 2624 deaths 2602 0.89s
+seed 5: n_end 5048 mean age 26.98->26.91 tvd 0.021 births 2642 deaths 2594 0.85s
+n_end: 5000.667 +/- 36.358
+age0: 26.769 +/- 0.414
+age1: 26.704 +/- 0.299
+tvd: 0.029 +/- 0.006
+births: 2617.167 +/- 37.614
+deaths: 2616.500 +/- 31.706
+time: 1.016 +/- 0.260
+timing 20k agents x 20 y weekly: best of 3 after warm-up 1.41s  (all [1.42 1.41 1.41 1.44])

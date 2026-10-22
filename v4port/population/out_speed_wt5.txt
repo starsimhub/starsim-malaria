@@ -1,0 +1,6 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+abm/declared  : best of 3 after warm-up 7.88s  (all [9.58 9.45 8.7  7.88])
+abm/modules   : best of 3 after warm-up 8.31s  (all [9.24 9.44 8.31 8.59])
+abm/fast      : best of 3 after warm-up 6.38s  (all [6.72 7.2  6.38 6.61])
+ode/declared  : best of 3 after warm-up 3.92s  (all [4.6  4.51 3.92 4.34])
+ 12:46:02 up 11 days, 18:05,  1 user,  load average: 7.95, 8.48, 7.76

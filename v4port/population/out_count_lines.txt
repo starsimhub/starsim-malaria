@@ -1,0 +1,18 @@
+v3
+     72  node_grid.py (NodeGrid)
+     19  demographics.py (compute_mortality_schedule)
+     23  defaults.py: make_steady_state_demographics, make_age_data, make_mortality_dataframe
+     63  FastBirths, FastDeaths, _death_draw_kernel (branch Interventions2-ck)
+    109  results.py: ResultsAnalyzer
+    244  results.py: MalariaMultiSim (plotting)
+    113  run_population_stability.py
+     22  human_base.py: node assignment (in _malaria_pre_step_state)
+     12  mosquito_eir_only.py: per-node EIR loop in step()
+    677  total
+v4
+     17  mal_v4.py: make_malaria (patch dimension, per-patch EIR and f_indoor; includes the SIS itself)
+     17  mal_v4.py: steady_state (declared and lifetable; the modules form is malariasim's, verbatim)
+      9  mal_v4.py: age_data, make_sim
+     15  common.py: compute_mortality_schedule (copied unchanged)
+     23  v4_stability.py (replaces run_population_stability.py; with plots)
+     81  total

@@ -1,0 +1,231 @@
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/human/repro_relsus_vector.py port_pf/human/repro_relsus_vector.py
+--- port/human/repro_relsus_vector.py	2026-10-21 20:05:25.366174156 -0400
++++ port_pf/human/repro_relsus_vector.py	2026-10-21 20:30:33.041012277 -0400
+@@ -6,7 +6,7 @@
+ def make():
+     a, b, c = 0.3, 0.5, 0.5
+     Sh, Eh, Ih, Rh = ss.states(4)
+-    Sv, Ev, Iv = ss.states(3)
++    Sv, Ev, Iv = ss.states(3, people=False)
+     Nh = (Sh + Eh + Ih + Rh).n
+     return ss.Disease(
+         infection  = Sh >> Eh @ a * b * Iv.n / Nh,
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/human/repro_weighted_count.py port_pf/human/repro_weighted_count.py
+--- port/human/repro_weighted_count.py	2026-10-21 20:05:25.367174152 -0400
++++ port_pf/human/repro_weighted_count.py	2026-10-21 20:30:33.053012174 -0400
+@@ -7,7 +7,7 @@
+ w = list(gamma_levels(1.0, 10)) # Mean-1 biting weights, Gamma(shape 1) in 10 equal-probability bins
+ a, b, c = 0.3, 0.5, 0.5
+ def make(weighted):
+-    Sh, Ih = ss.states('Sh Ih'); Sv, Ev, Iv = ss.states('Sv Ev Iv')
++    Sh, Ih = ss.states('Sh Ih'); Sv, Ev, Iv = ss.states('Sv Ev Iv', people=False)
+     Nh = (Sh + Ih).n
+     H = ss.by(biting=w) * Ih.n if weighted else Ih.n
+     d = ss.Disease(
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/interventions/repro_mosquitoes_become_people.py port_pf/interventions/repro_mosquitoes_become_people.py
+--- port/interventions/repro_mosquitoes_become_people.py	2026-10-21 20:05:25.363174169 -0400
++++ port_pf/interventions/repro_mosquitoes_become_people.py	2026-10-21 20:30:33.046012234 -0400
+@@ -3,7 +3,7 @@
+ 
+ def make(init):
+     Sh, Eh, Ih, Rh = ss.states(4)
+-    Sv, Ev, Iv     = ss.states(3)
++    Sv, Ev, Iv     = ss.states(3, people=False)
+     Nh = (Sh + Eh + Ih + Rh).n
+     a = ss.perday(0.3); b, c = 0.5, 0.5
+     malaria = ss.Disease(
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/probe11_geo.py port_pf/population/probe11_geo.py
+--- port/population/probe11_geo.py	2026-10-21 20:05:25.358174190 -0400
++++ port_pf/population/probe11_geo.py	2026-10-21 20:31:02.036766072 -0400
+@@ -1,10 +1,10 @@
+-""" Probe: NodeGrid(populations=, labels=) as ss.geo(names=, pop=): exact counts, total population, and agents standing for more people """
++""" Probe: NodeGrid(populations=, labels=) as ss.geo.location(names=, pop=): exact counts, total population, and agents standing for more people """
+ import numpy as np
+ import starsim as ss; print(ss.__version__, ss.__file__)
+ for kw in [dict(), dict(n_agents=1000)]:
+     S, I = ss.states('S I')
+     mal = ss.Disease(bite=S >> I @ 0.4*ss.by(patch=[ss.peryear(4), ss.peryear(6), ss.peryear(8)]), recovery=I >> S @ ss.days(200), name='malaria')
+-    mal.stratify(patch=ss.geo(names=['urban', 'peri', 'rural'], pop=[2000, 1500, 1500]))
++    mal.stratify(patch=ss.geo.location(names=['urban', 'peri', 'rural'], pop=[2000, 1500, 1500]))
+     sim = ss.Sim(mal, start=2000, stop=2001, dt=ss.days(7), verbose=0, **kw).init()
+     sim.run()
+     r = sim.results.malaria
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/probe8_emergence_by_patch.py port_pf/population/probe8_emergence_by_patch.py
+--- port/population/probe8_emergence_by_patch.py	2026-10-21 20:05:25.359174186 -0400
++++ port_pf/population/probe8_emergence_by_patch.py	2026-10-21 20:30:33.056012149 -0400
+@@ -9,7 +9,7 @@
+         ('per human, by(patch=[0.05,0.02,0.01]) x Nh', lambda S, I: ss.by(patch=[ss.perday(0.05), ss.perday(0.02), ss.perday(0.01)]) * (S + I).n),
+     ]:
+     for solver in ['ode', 'abm']:
+-        S, I, Sv = ss.states('S I Sv')
++        S, I = ss.states('S I'); Sv = ss.State('Sv', people=False)
+         mal = ss.Disease(bite=S >> I @ ss.peryear(1.0), recovery=I >> S @ ss.days(200), emergence=ss.null >> Sv @ make_rate(S, I), mortality=Sv >> ss.null @ ss.days(10), name='malaria')
+         mal.stratify(patch=['a', 'b', 'c'], kind='space', split=np.array(pops)/sum(pops))
+         try:
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/repro_births_rate_meaning.py port_pf/population/repro_births_rate_meaning.py
+--- port/population/repro_births_rate_meaning.py	2026-10-21 20:05:25.360174181 -0400
++++ port_pf/population/repro_births_rate_meaning.py	2026-10-21 20:31:02.035766080 -0400
+@@ -6,7 +6,8 @@
+ for label, demog in [('ss.Births(birth_rate=ss.peryear(25.768))', lambda: [ss.Births(birth_rate=ss.peryear(r*1000))]), ('ss.birth(rate=ss.peryear(0.025768))', lambda: [ss.birth(rate=ss.peryear(r))])]:
+     ends = []
+     for seed in range(10):
+-        sis = ss.Disease(infection=ss.transmission('S -> I', beta=ss.peryear(0.1)), recovery=ss.progression('I -> S', dur=ss.years(1)), init_prev=0.0, name='sis')
++        S, I = ss.states('S I')
++        sis = ss.Disease(infection=S >> I @ ss.peryear(0.1) * I, recovery=I >> S @ ss.years(1), init_prev=0.0, name='sis')
+         sim = ss.Sim(sis, n_agents=N0, demographics=demog(), start=2000, stop=2000+Y, dt=ss.days(7), rand_seed=seed, verbose=0).run()
+         ends.append(sim.people.alive.sum())
+     print(f'{label}: N after {Y} y {np.mean(ends):.0f} +/- {np.std(ends)/np.sqrt(len(ends)):.0f}')
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/repro_describe_people_age.py port_pf/population/repro_describe_people_age.py
+--- port/population/repro_describe_people_age.py	2026-10-21 20:05:25.358174190 -0400
++++ port_pf/population/repro_describe_people_age.py	2026-10-21 20:31:02.035766080 -0400
+@@ -5,7 +5,8 @@
+ ages = pd.DataFrame({'age': np.arange(100), 'value': np.exp(-np.arange(100)/20)}) # A young population: 22% under 5
+ w = ages.value.values; print('given shares by age group:', np.round([w[:5].sum(), w[5:15].sum(), w[15:50].sum(), w[50:].sum()]/w.sum(), 3))
+ for solver in ['abm', 'ode']:
+-    sis = ss.Disease(infection=ss.transmission('S -> I', beta=ss.peryear(0.5)), recovery=ss.progression('I -> S', dur=ss.years(1)), init_prev=0.1, name='sis')
++    S, I = ss.states('S I')
++    sis = ss.Disease(infection=S >> I @ ss.peryear(0.5) * I, recovery=I >> S @ ss.years(1), init_prev=0.1, name='sis')
+     sim = ss.Sim(sis, people=ss.People(5000, age_data=sc.dataframe(ages)), stratify=dict(age=[0, 5, 15, 50]), solver=solver,
+                  demographics=[ss.birth(rate=ss.peryear(0.05)), ss.death(rate=ss.peryear(0.05))], start=2000, stop=2001, verbose=0).run()
+     a = sim.results.sis.n_S.by('age').values[0] + sim.results.sis.n_I.by('age').values[0]
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/repro_newborn_patch.py port_pf/population/repro_newborn_patch.py
+--- port/population/repro_newborn_patch.py	2026-10-21 20:05:25.358174190 -0400
++++ port_pf/population/repro_newborn_patch.py	2026-10-21 20:31:02.036766072 -0400
+@@ -2,7 +2,8 @@
+ import numpy as np
+ import starsim as ss; print(ss.__version__, ss.__file__)
+ for kind in ['modules', 'declared']:
+-    sis = ss.Disease(infection=ss.transmission('S -> I', beta=ss.peryear(0.5)), recovery=ss.progression('I -> S', dur=ss.years(1)), init_prev=0.1, name='sis')
++    S, I = ss.states('S I')
++    sis = ss.Disease(infection=S >> I @ ss.peryear(0.5) * I, recovery=I >> S @ ss.years(1), init_prev=0.1, name='sis')
+     sis.stratify(patch=['a', 'b', 'c'], kind='space', split=[0.4, 0.3, 0.3])
+     demog = [ss.Births(birth_rate=ss.peryear(40)), ss.Deaths(death_rate=ss.peryear(40))] if kind == 'modules' else [ss.birth(rate=ss.peryear(0.04)), ss.death(rate=ss.peryear(0.04))]
+     sim = ss.Sim(sis, n_agents=10_000, demographics=demog, start=2000, stop=2020, dt=ss.years(1/12), rand_seed=2, verbose=0).run()
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/population/v3_fast_demog.py port_pf/population/v3_fast_demog.py
+--- port/population/v3_fast_demog.py	2026-10-21 20:05:25.357174194 -0400
++++ port_pf/population/v3_fast_demog.py	2026-10-21 20:31:26.696560061 -0400
+@@ -112,7 +112,7 @@
+             br   = self.pars.birth_rate
+             rate = ss.prob(br.value * self.pars.rate_units * self.pars.rel_birth,
+                            br.unit).to_prob(ss.years(1))
+-            self._scaled_p = float(np.clip(ss.prob.array_to_prob(np.array([rate]), self.t.dt)[0],
++            self._scaled_p = float(np.clip(ss.prob(rate, ss.years(1)).to_prob(self.t.dt),
+                                            0.0, 1.0))
+         auids = self.sim.people.auids
+         self._n_new_dist.set(lam=len(auids) * self._scaled_p)
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/hybrid_v4.py port_pf/vector/hybrid_v4.py
+--- port/vector/hybrid_v4.py	2026-10-21 20:05:25.354174206 -0400
++++ port_pf/vector/hybrid_v4.py	2026-10-21 20:30:33.027012397 -0400
+@@ -16,7 +16,7 @@
+ 
+ def make_malaria(Nh=10_000, a=0.24, b=0.15, r=1/120, Ih0=10, c=0.15, mu_m=0.10, sigma_m=1/12, m0=5, Im0=100, sn_relax=0.15):
+     Sh, Ih     = ss.states(2)
+-    Sv, Ev, Iv = ss.states(3)
++    Sv, Ev, Iv = ss.states(3, people=False)
+     N = (Sh + Ih).n
+     M = (Sv + Ev + Iv).n
+     days = np.arange(366)
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/ms_mosquito_v4.py port_pf/vector/ms_mosquito_v4.py
+--- port/vector/ms_mosquito_v4.py	2026-10-21 20:05:25.355174202 -0400
++++ port_pf/vector/ms_mosquito_v4.py	2026-10-21 20:30:33.028012389 -0400
+@@ -10,7 +10,7 @@
+ 
+ def make_malaria(a=0.3, b=0.5, c=0.5, life=10, eip=12, init_prev=0.01, eip_fixed=False):
+     Sh, Ih     = ss.states(2)
+-    Sv, Ev, Iv = ss.states(3)
++    Sv, Ev, Iv = ss.states(3, people=False)
+     N = (Sh + Ih).n
+     em = ss.timeseries({k*365.25/12: v for k, v in enumerate(emergence + emergence[:1])}, mode='linear', period=ss.years(1)) # Linear between month starts, wrapping
+     malaria = ss.Disease(
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/probe_results_equations.py port_pf/vector/probe_results_equations.py
+--- port/vector/probe_results_equations.py	2026-10-21 20:05:25.355174202 -0400
++++ port_pf/vector/probe_results_equations.py	2026-10-21 20:30:33.029012380 -0400
+@@ -2,7 +2,7 @@
+ import starsim as ss; print(ss.__version__, ss.__file__)
+ import numpy as np
+ from ms_mosquito_v4 import emergence
+-Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3)
++Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3, people=False)
+ N = (Sh + Ih).n
+ em = ss.timeseries({k*365.25/12: v for k, v in enumerate(emergence + emergence[:1])}, mode='linear', period=ss.years(1))
+ mal = ss.Disease(infection=Sh >> Ih @ ss.perday(0.15) * Iv.n / N, recovery=Ih >> Sh @ ss.lognorm_ex(mean=ss.days(200), std=ss.days(200)),
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/repro_count_dwell.py port_pf/vector/repro_count_dwell.py
+--- port/vector/repro_count_dwell.py	2026-10-21 20:05:25.355174202 -0400
++++ port_pf/vector/repro_count_dwell.py	2026-10-21 20:30:33.029012380 -0400
+@@ -8,7 +8,7 @@
+ import numpy as np
+ def make(EIP=ss.days(12)):
+     Sh, Ih = ss.states(2)
+-    Sv, Ev, Iv = ss.states(3)
++    Sv, Ev, Iv = ss.states(3, people=False)
+     N = (Sh + Ih).n
+     return ss.Disease(infection=Sh >> Ih @ ss.perday(1e-9) * Iv.n / N, emergence=ss.null >> Sv @ ss.perday(5000),
+                       biting=Sv >> Ev @ ss.perday(0.05), incubation=Ev >> Iv @ EIP,
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/repro_count_order.py port_pf/vector/repro_count_order.py
+--- port/vector/repro_count_order.py	2026-10-21 20:05:25.355174202 -0400
++++ port_pf/vector/repro_count_order.py	2026-10-21 20:30:33.066012063 -0400
+@@ -7,7 +7,7 @@
+ import numpy as np
+ def make():
+     Sh, Ih = ss.states(2)
+-    Ev, Iv = ss.states(2)
++    Ev, Iv = ss.states(2, people=False)
+     N = (Sh + Ih).n
+     return ss.Disease(
+         infection  = Sh >> Ih @ ss.perday(1e-4) * Iv.n / N,  # about 100 infectious bites per person per day once Iv is 1e6
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/repro_perf_timeseries.py port_pf/vector/repro_perf_timeseries.py
+--- port/vector/repro_perf_timeseries.py	2026-10-21 20:05:25.354174206 -0400
++++ port_pf/vector/repro_perf_timeseries.py	2026-10-21 20:30:33.030012371 -0400
+@@ -9,7 +9,7 @@
+ days = np.arange(366.0)
+ em366 = dict(zip(days.tolist(), np.interp(days, list(em13.keys()), list(em13.values())).tolist()))
+ def make(points):
+-    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3); N = (Sh + Ih).n
++    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3, people=False); N = (Sh + Ih).n
+     em = ss.timeseries(points, mode='linear', period=ss.years(1))
+     return ss.Disease(infection=Sh >> Ih @ ss.perday(0.15) * Iv.n / N, recovery=Ih >> Sh @ ss.lognorm_ex(mean=ss.days(200), std=ss.days(200)),
+                       emergence=ss.null >> Sv @ ss.perday(1) * em * N, biting=Sv >> Ev @ ss.perday(0.15) * Ih.n / N,
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/repro_R0_vector.py port_pf/vector/repro_R0_vector.py
+--- port/vector/repro_R0_vector.py	2026-10-21 20:05:25.356174198 -0400
++++ port_pf/vector/repro_R0_vector.py	2026-10-21 20:30:33.030012371 -0400
+@@ -4,7 +4,7 @@
+ """
+ import starsim as ss; print(ss.__version__, ss.__file__)
+ Sh, Eh, Ih, Rh = ss.states(4)
+-Sv, Ev, Iv     = ss.states(3)
++Sv, Ev, Iv     = ss.states(3, people=False)
+ Nh = (Sh + Eh + Ih + Rh).n
+ a = ss.perday(0.3); b, c = 0.5, 0.5
+ malaria = ss.Disease(
+diff -ru -x '*.log' -x '*.out' -x '*.txt' -x '*.json' -x '*.csv' -x __pycache__ port/vector/repro_species_weighted_count.py port_pf/vector/repro_species_weighted_count.py
+--- port/vector/repro_species_weighted_count.py	2026-10-21 20:05:25.355174202 -0400
++++ port_pf/vector/repro_species_weighted_count.py	2026-10-21 20:30:33.030012371 -0400
+@@ -6,7 +6,7 @@
+ import numpy as np
+ from ms_mosquito_v4 import emergence
+ def make(weighted):
+-    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3)
++    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3, people=False)
+     N = (Sh + Ih).n
+     em = ss.timeseries({k*365.25/12: v for k, v in enumerate(emergence + emergence[:1])}, mode='linear', period=ss.years(1))
+     a = ss.by(species=[0.3, 0.15]) if weighted else 0.3
+@@ -30,7 +30,7 @@
+     m = make(True); return m
+ import ms_mosquito_v4
+ for vals in [[0.15, 0.3], [3.0, 3.0], [0.0, 0.0]]:
+-    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3)
++    Sh, Ih = ss.states(2); Sv, Ev, Iv = ss.states(3, people=False)
+     N = (Sh + Ih).n
+     em = ss.timeseries({k*365.25/12: v for k, v in enumerate(emergence + emergence[:1])}, mode='linear', period=ss.years(1))
+     mal = ss.Disease(infection=Sh >> Ih @ ss.perday(0.5) * ss.by(species=vals) * Iv.n / N, recovery=Ih >> Sh @ ss.lognorm_ex(mean=ss.days(200), std=ss.days(200)),
+--- /home/cliffk/idm/ngm/starsim-ngm/v4port/framework/repro_diff_coded.py	2026-10-18 12:37:10.711871185 -0400
++++ framework/repro_diff_coded.py	2026-10-21 20:08:52.332284751 -0400
+@@ -1,6 +1,6 @@
+-""" Minimal: ss.diff(sim1, sim2) on two plain sims holding a coded disease (ssl.CodedSIS) """
++""" Minimal: ss.diff(sim1, sim2) on two plain sims holding a coded disease (ssl.AgentSIS) """
+ import starsim as ss, starsim.library as ssl; print(ss.__version__, ss.__file__)
+-mk = lambda beta: ss.Sim(diseases=ssl.CodedSIS(beta=beta), networks='random', n_agents=200, stop=2001, verbose=0)
++mk = lambda beta: ss.Sim(diseases=ssl.AgentSIS(beta=beta), networks='random', n_agents=200, stop=2001, verbose=0)
+ try:
+     ss.diff(mk(0.05), mk(0.1))
+ except Exception as e:

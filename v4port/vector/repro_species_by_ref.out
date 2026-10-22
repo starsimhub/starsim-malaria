@@ -1,0 +1,12 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+explicit species, EIR weights (0.15, 0.3), ode: prev y3 0.1576
+explicit species, EIR weights (0.15, 0.3), abm: prev y3 0.1747
+explicit species, EIR weights (0.15, 0.15), ode: prev y3 0.1356
+explicit species, EIR weights (0.15, 0.15), abm: prev y3 0.1513
+explicit species, EIR weights (0.2, 0.2), ode: prev y3 0.3038
+explicit species, EIR weights (0.2, 0.2), abm: prev y3 0.3126
+explicit species, EIR weights (0.225, 0.225), ode: prev y3 0.3726
+explicit species, EIR weights (0.225, 0.225), abm: prev y3 0.3776
+explicit species, EIR weights (0.25, 0.25), ode: prev y3 0.4277
+explicit species, EIR weights (0.25, 0.25), abm: prev y3 0.4242

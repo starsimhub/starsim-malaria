@@ -1,0 +1,6 @@
+3.6.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/v3_f40175b4/starsim/__init__.py
+v3 MalariaHumanODE, 5 y daily: best of 3 after warm-up 0.55s (0.300 ms/step)
+death_rate_per_year given to the ODE: peryear(0) ; birth_rate_per_year: peryear(0)
+per-bin death rates it solved (first 4): [0.     0.0136 0.018  0.0198] ; birth rate 0.0256
+prev by node, last 5 of 20 years: [0.4495 0.5503 0.6199]
+N start -> end 5000 5000

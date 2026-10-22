@@ -1,0 +1,82 @@
+{
+  "a": {
+    "time_s": 0.41860797704430297,
+    "times": [
+      0.41860797704430297
+    ],
+    "build_s": 0.0038844970404170454,
+    "n_humans": 10000,
+    "n_mosquitoes": 0,
+    "label": "human-ode + mos-eir"
+  },
+  "b": {
+    "time_s": 0.4827810130082071,
+    "times": [
+      0.4827810130082071
+    ],
+    "build_s": 0.00452787900576368,
+    "n_humans": 10000,
+    "n_mosquitoes": 0,
+    "label": "human-ode + mos-ode"
+  },
+  "c": {
+    "time_s": 4.081354102992918,
+    "times": [
+      4.081354102992918
+    ],
+    "build_s": 0.007834458956494927,
+    "n_humans": 10000,
+    "n_mosquitoes": 0,
+    "label": "human-seis + mos-ode"
+  },
+  "d": {
+    "time_s": 24.874276540998835,
+    "times": [
+      24.874276540998835
+    ],
+    "build_s": 0.004305359034333378,
+    "n_humans": 10000,
+    "n_mosquitoes": 214338,
+    "label": "human-ode + mos-agents"
+  },
+  "e10": {
+    "time_s": 24.439846742956433,
+    "times": [
+      24.439846742956433
+    ],
+    "build_s": 0.006404093990568072,
+    "n_humans": 10000,
+    "n_mosquitoes": 195180,
+    "label": "seis+agents 10000/200000"
+  },
+  "fsis10": {
+    "time_s": 3.7599071839940734,
+    "times": [
+      3.7599071839940734
+    ],
+    "build_s": 0.006367038004100323,
+    "n_humans": 10000,
+    "n_mosquitoes": 0,
+    "label": "sis+ode 10000"
+  },
+  "fseis10": {
+    "time_s": 3.871765457035508,
+    "times": [
+      3.871765457035508
+    ],
+    "build_s": 0.006331940996460617,
+    "n_humans": 10000,
+    "n_mosquitoes": 0,
+    "label": "seis+ode 10000"
+  },
+  "fsis100": {
+    "time_s": 22.24633780302247,
+    "times": [
+      22.24633780302247
+    ],
+    "build_s": 0.00766900199232623,
+    "n_humans": 100000,
+    "n_mosquitoes": 0,
+    "label": "sis+ode 100000"
+  }
+}

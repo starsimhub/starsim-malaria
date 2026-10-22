@@ -1,0 +1,33 @@
+4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
+Sim: 2 modules, 5,000 people, days 2000 to 2020
+solver       ode                                             [requested]
+             dwell time: recovery (lognorm_ex): approx on groups (Erlang stages)
+unit         day                                             [from the typed values in the model]
+dimension    age (age): 0-4, 5-9, 10-14, 15-19, 20-24, 25-29, 30-34, 35-39, 40-44, 45-49, 50-54, 55-59, 60-64, 65-69, 70-74, 75-79, 80-84, 85-89, 90-94, 95+; people age between the groups [guessed: ages as the world's population in 2024; aging, since people are born or die]
+dimension    patch (space): urban, peri, rural; applies to every state; mobility: none
+
+Disease 'malaria': 2 states, 5 transitions
+states       S, I
+             init: S = 1.0                                   [guessed: nothing given]
+
+bite_indoor  S -> I   spontaneous
+             rate = 0.4 × by(patch=[0.8, 0.7, 0.55]) × by(patch=[timeseries({0.0: peryear(1.11628), 0.08333333333333333: peryear(2.23256), 0.16666666666666666: peryear(3.34884), 0.25: peryear(5.5814), 0.3333333333333333: peryear(8.93023), 0.4166666666666667: peryear(11.1628), 0.5: peryear(6.69767), 0.5833333333333334: peryear(3.34884), 0.6666666666666666: peryear(2.23256), 0.75: peryear(1.11628), 0.8333333333333334: peryear(1.11628), 0.9166666666666666: peryear(1.11628), 1.0: peryear(1.11628)}, mode='linear'), timeseries({0.0: peryear(2.21538), 0.08333333333333333: peryear(2.21538), 0.16666666666666666: peryear(5.53846), 0.25: peryear(6.64615), 0.3333333333333333: peryear(8.86154), 0.4166666666666667: peryear(11.0769), 0.5: peryear(13.2923), 0.5833333333333334: peryear(8.86154), 0.6666666666666666: peryear(5.53846), 0.75: peryear(3.32308), 0.8333333333333334: peryear(2.21538), 0.9166666666666666: peryear(2.21538), 1.0: peryear(2.21538)}, mode='linear'), timeseries({0.0: peryear(4.0678), 0.08333333333333333: peryear(4.0678), 0.16666666666666666: peryear(4.0678), 0.25: peryear(6.50847), 0.3333333333333333: peryear(8.13559), 0.4166666666666667: peryear(11.3898), 0.5: peryear(14.6441), 0.5833333333333334: peryear(16.2712), 0.6666666666666666: peryear(11.3898), 0.75: peryear(6.50847), 0.8333333333333334: peryear(4.88136), 0.9166666666666666: peryear(4.0678), 1.0: peryear(4.0678)}, mode='linear')])
+bite_outdoor S -> I   spontaneous
+             rate = 0.4 × (1 - by(patch=[0.8, 0.7, 0.55])) × by(patch=[timeseries({0.0: peryear(1.11628), 0.08333333333333333: peryear(2.23256), 0.16666666666666666: peryear(3.34884), 0.25: peryear(5.5814), 0.3333333333333333: peryear(8.93023), 0.4166666666666667: peryear(11.1628), 0.5: peryear(6.69767), 0.5833333333333334: peryear(3.34884), 0.6666666666666666: peryear(2.23256), 0.75: peryear(1.11628), 0.8333333333333334: peryear(1.11628), 0.9166666666666666: peryear(1.11628), 1.0: peryear(1.11628)}, mode='linear'), timeseries({0.0: peryear(2.21538), 0.08333333333333333: peryear(2.21538), 0.16666666666666666: peryear(5.53846), 0.25: peryear(6.64615), 0.3333333333333333: peryear(8.86154), 0.4166666666666667: peryear(11.0769), 0.5: peryear(13.2923), 0.5833333333333334: peryear(8.86154), 0.6666666666666666: peryear(5.53846), 0.75: peryear(3.32308), 0.8333333333333334: peryear(2.21538), 0.9166666666666666: peryear(2.21538), 1.0: peryear(2.21538)}, mode='linear'), timeseries({0.0: peryear(4.0678), 0.08333333333333333: peryear(4.0678), 0.16666666666666666: peryear(4.0678), 0.25: peryear(6.50847), 0.3333333333333333: peryear(8.13559), 0.4166666666666667: peryear(11.3898), 0.5: peryear(14.6441), 0.5833333333333334: peryear(16.2712), 0.6666666666666666: peryear(11.3898), 0.75: peryear(6.50847), 0.8333333333333334: peryear(4.88136), 0.9166666666666666: peryear(4.0678), 1.0: peryear(4.0678)}, mode='linear')])
+recovery     I -> S   spontaneous
+             dwell ~ ss.lognorm_ex(mean=200, std=200), as 1 Erlang stages [guessed: stages from the mean and standard deviation]
+births       -> S   inflow, in total per day
+             rate = 0.025768 × (S + I).n
+deaths       S | I ->   spontaneous
+             dwell ~ exponential(rate = by(age=[peryear(0.0079532), peryear(0.0166916), peryear(0.0182143), peryear(0.0200433), peryear(0.0222817), peryear(0.025085), peryear(0.0286988), peryear(0.0335368), peryear(0.040355), peryear(0.0360842), peryear(0.0286988), peryear(0.0335368), peryear(0.040355), peryear(0.050705), peryear(0.0683965), peryear(0.0905236), peryear(0.102165), peryear(0.100551), peryear(0.101453), peryear(0.419036)]))
+
+results      n_S, n_I, and one flow per transition; also prevalence
+note         unit='day' (from the typed values in the model)
+note         recovery has a lognorm_ex dwell time, approximated by 1 Erlang stage (mean 200 days kept; std 200 instead of 200 days)
+schedule     every 7 days: flows, malaria
+
+5-year bins, no split (guessed): N 5000 -> 4564 (-8.7%); start pyramid vs malariasim 0.155; end vs start 0.119; share under 5 0.082 -> 0.126 (malariasim 0.130)
+5-year bins, split=malariasim fractions: N 5000 -> 4915 (-1.7%); start pyramid vs malariasim 0.000; end vs start 0.015; share under 5 0.130 -> 0.125 (malariasim 0.130)
+1-year bins, split=malariasim density, mu by year of age: N 5000 -> 4946 (-1.1%); start pyramid vs malariasim 0.003; end vs start 0.004; share under 5 0.128 -> 0.127 (malariasim 0.130)
+death rate that holds the split under 1/width aging, first groups: [-0.0022  0.0167  0.0182  0.02  ] against malariasim mu by group [0.008  0.0167 0.0182 0.02  ]
+5-year bins, split, death rate solved for 1/width aging: N 5000 -> 4967 (-0.7%); start pyramid vs malariasim 0.000; end vs start 0.003; share under 5 0.130 -> 0.129 (malariasim 0.130)
