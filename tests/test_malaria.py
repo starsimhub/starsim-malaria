@@ -1,968 +1,343 @@
 """
-Test malaria simulation configurations.
+Test malaria simulation configurations: the human and mosquito models, both solvers, nodes, and populations
 """
+
+import numpy as np
 import sciris as sc
 import starsim as ss
-import matplotlib.pyplot as plt
 import malariasim as ms
 
 n_agents = 1_000
-do_plot = False
 sc.options(interactive=False)
-
-default_nodes = ms.NodeGrid(populations=[n_agents])
 
 
 def make_sim(human='sis', mosquito='eir_only', **kw):
-    """Helper to create a small, fast sim for testing."""
-    return ms.Sim(
-        human     = human,
-        mosquito  = mosquito,
-        start     = kw.pop('start', 2000),
-        stop      = kw.pop('stop', 2001),
-        nodes     = kw.pop('nodes', default_nodes),
-        dt        = kw.pop('dt', ss.days(1)),
-        rand_seed = kw.pop('rand_seed', 0),
-        verbose   = kw.pop('verbose', 0),
-        **kw,
-    )
+    kw = sc.mergedicts(dict(start=2000, stop=2001, nodes=[n_agents], dt=ss.days(1), rand_seed=0, verbose=0), kw)
+    return ms.Sim(human=human, mosquito=mosquito, **kw)
+
+
+def seed(at='2000-01-01', coverage=1.0, where=None):
+    """ An outbreak: a share of the susceptible infected at a time """
+    return lambda mal: ss.Delivery(move=mal.S >> mal.I, at=at, coverage=coverage, where=where, name='seed')
+
+
+def infected_by_node(sim):
+    """ The infectious people in each node at the end """
+    return sim.results.malaria.I.by('patch')[-1]
 
 
 @sc.timer()
 def test_sis_eir():
-    """Test that SIS + EIR-only runs and produces infections."""
-    sc.heading('Testing SIS + EIR-only...')
-    sim = make_sim(human='sis', mosquito='eir_only')
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected some infections with default EIR, but got {n_infected}'
-    if do_plot:
-        sim.plot()
+    sim = make_sim(human='sis', mosquito='eir_only').run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected some infections with the default EIR'
 
 
 @sc.timer()
 def test_seis_eir():
-    """Test that SEIS + EIR-only runs and produces infections."""
-    sc.heading('Testing SEIS + EIR-only...')
-    sim = make_sim(human='seis', mosquito='eir_only')
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected some infections with default EIR, but got {n_infected}'
-    if do_plot:
-        sim.plot()
+    sim = make_sim(human='seis', mosquito='eir_only').run()
+    res = sim.results.malaria
+    assert res.I.sum() > 0 and res.E.sum() > 0, 'Expected some exposed and infectious people with the default EIR'
 
 
 @sc.timer()
 def test_sis_agents():
-    """Test that SIS + agent-based mosquitoes runs and produces infections."""
-    sc.heading('Testing SIS + agents...')
-    sim = make_sim(human='sis', mosquito='agents', human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected some infections with agent mosquitoes, but got {n_infected}'
-    if do_plot:
-        sim.plot()
+    sim = make_sim(human='sis', mosquito='agents', init_prev=0.01).run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected some infections with agent mosquitoes'
+    assert sim.results.mosquitoes.Iv.sum() > 0, 'Expected some infectious mosquitoes'
 
 
 @sc.timer()
 def test_sis_ode():
-    """Test that SIS + ODE mosquitoes runs and produces infections."""
-    sc.heading('Testing SIS + ODE mosquitoes...')
-    sim = make_sim(human='sis', mosquito='ode', human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected some infections with ODE mosquitoes, but got {n_infected}'
-    if do_plot:
-        sim.plot()
+    sim = make_sim(human='sis', mosquito='ode', init_prev=0.01).run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected some infections with ODE mosquitoes'
 
 
 @sc.timer()
 def test_seis_ode():
-    """Test that SEIS + ODE mosquitoes runs and produces infections."""
-    sc.heading('Testing SEIS + ODE mosquitoes...')
-    sim = make_sim(human='seis', mosquito='ode', human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected some infections with ODE mosquitoes, but got {n_infected}'
-    if do_plot:
-        sim.plot()
+    sim = make_sim(human='seis', mosquito='ode', init_prev=0.01).run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected some infections with ODE mosquitoes'
 
 
 @sc.timer()
 def test_ode_mosquito_results():
-    """Test that ODE mosquito results are populated and biologically sensible."""
-    sc.heading('Testing ODE mosquito results...')
-    sim = make_sim(human='sis', mosquito='ode', human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim.run()
-
-    mos_res = sim.results['mosquitoesode']
-    assert mos_res.n_total.values.sum() > 0,      'Expected non-zero total mosquito population'
-    assert mos_res.n_infectious.values.sum() > 0, 'Expected some infectious mosquitoes'
-    assert mos_res.eir_annual.values.sum() > 0,   'Expected non-zero EIR from ODE mosquitoes'
-
-    assert (mos_res.n_susceptible.values >= 0).all(), 'Sm went negative'
-    assert (mos_res.n_exposed.values     >= 0).all(), 'Em went negative'
-    assert (mos_res.n_infectious.values  >= 0).all(), 'Im went negative'
+    sim = make_sim(human='sis', mosquito='ode', init_prev=0.01).run()
+    res = sim.results.malaria
+    assert res.mosquitoes.sum() > 0, 'Expected a mosquito population'
+    assert res.Iv.sum() > 0, 'Expected some infectious mosquitoes'
+    assert res.eir.sum() > 0, 'Expected a non-zero EIR from the mosquitoes'
+    for key in ['Sv', 'Ev', 'Iv']:
+        assert (res[key] >= 0).all(), f'{key} went negative'
 
 
 @sc.timer()
 def test_ode_multinode():
-    """Test that ODE mosquitoes work correctly with a multi-node grid."""
-    sc.heading('Testing ODE mosquitoes with multi-node grid...')
-    nodes = ms.NodeGrid(
-        populations = [600, 400],
-        emergence   = [
-            [0.008, 0.008, 0.015, 0.030, 0.045, 0.060, 0.060, 0.045, 0.030, 0.015, 0.008, 0.008],
-            [0.002, 0.002, 0.005, 0.010, 0.018, 0.025, 0.025, 0.018, 0.010, 0.005, 0.002, 0.002],
-        ],
-    )
-    sim = make_sim(human='sis', mosquito='ode', nodes=nodes, human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.sum()
-    assert n_infected > 0, f'Expected infections in multi-node ODE sim, but got {n_infected}'
-
-    mos_mod = sim.connectors[1]
-    assert (mos_mod._Sm + mos_mod._Em + mos_mod._Im > 0).all(), \
-        'Expected non-zero mosquito population in every node'
+    nodes = ss.geo.geography(names=['Urban', 'Rural'], pop=[600, 400])
+    sim = make_sim(mosquito='ode', nodes=nodes, init_prev=0.01, emergence=[ms.URBAN_EMERGENCE, ms.RURAL_EMERGENCE]).run()
+    res = sim.results.malaria
+    assert res.I.sum() > 0, 'Expected infections in a multi-node sim'
+    assert (res.mosquitoes.by('patch')[-1] > 0).all(), 'Expected mosquitoes in every node'
 
 
 @sc.timer()
 def test_ode_more_emergence_more_infections():
-    """Test that higher ODE mosquito emergence produces more cumulative infections."""
-    sc.heading('Testing ODE: higher emergence → more infections...')
-
-    lo_nodes = ms.NodeGrid(populations=[n_agents], emergence=[[0.002] * 12])
-    hi_nodes = ms.NodeGrid(populations=[n_agents], emergence=[[0.030] * 12])
-
-    _seed = dict(human_pars=dict(init_prev=ss.bernoulli(p=0.01)))
-    sim_lo = make_sim(mosquito='ode', nodes=lo_nodes, **_seed)
-    sim_hi = make_sim(mosquito='ode', nodes=hi_nodes, **_seed)
-    sim_lo.run()
-    sim_hi.run()
-
-    cum_lo = sim_lo.diseases[0].results.new_infections.sum()
-    cum_hi = sim_hi.diseases[0].results.new_infections.sum()
-    assert cum_hi > cum_lo, (
-        f'Expected more infections with high emergence than low, '
-        f'but got {cum_hi} vs {cum_lo}'
-    )
+    sim_lo = make_sim(mosquito='ode', emergence=[0.002]*12, init_prev=0.01).run()
+    sim_hi = make_sim(mosquito='ode', emergence=[0.030]*12, init_prev=0.01).run()
+    lo, hi = sim_lo.results.malaria.infections.sum(), sim_hi.results.malaria.infections.sum()
+    assert hi > lo, f'Expected more infections with high emergence than low, but got {hi} vs {lo}'
 
 
 @sc.timer()
 def test_higher_eir_more_infections():
-    """Test that higher EIR produces more cumulative infections."""
-    sc.heading('Testing higher EIR → more infections...')
-
-    lo_nodes = ms.NodeGrid(populations=[n_agents], eir=[[1]*12])
-    hi_nodes = ms.NodeGrid(populations=[n_agents], eir=[[20]*12])
-
-    sim_lo = make_sim(mosquito='eir_only', nodes=lo_nodes)
-    sim_hi = make_sim(mosquito='eir_only', nodes=hi_nodes)
-    sim_lo.run()
-    sim_hi.run()
-
-    cum_lo = sim_lo.diseases[0].results.new_infections.sum()
-    cum_hi = sim_hi.diseases[0].results.new_infections.sum()
-    assert cum_hi > cum_lo, (
-        f'Expected more cumulative infections with EIR=20 than EIR=1, '
-        f'but got {cum_hi} vs {cum_lo}'
-    )
-
-    if do_plot:
-        plt.figure()
-        plt.plot(sim_lo.diseases[0].results.new_infections, label='EIR=1')
-        plt.plot(sim_hi.diseases[0].results.new_infections, label='EIR=20')
-        plt.legend()
-        plt.title('New infections: low vs high EIR')
+    sim_lo = make_sim(eir=1).run()
+    sim_hi = make_sim(eir=20).run()
+    lo, hi = sim_lo.results.malaria.infections.sum(), sim_hi.results.malaria.infections.sum()
+    assert hi > lo, f'Expected more infections with EIR=20 than EIR=1, but got {hi} vs {lo}'
 
 
-# ------------------------------------------------------------------
-# MalariaHumanODE tests
-# ------------------------------------------------------------------
-
-AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
-AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
-
-
-def _ode_demographics():
-    """Return steady-state demographics for use with ODE human tests."""
-    return ms.make_steady_state_demographics()
-
-
-def _ode_age_data():
-    """Return the smooth per-year age-distribution consistent with the mortality schedule."""
-    return sc.dataframe(ms.make_age_data())
-
+# The same models as an ODE (solver='ode'), with age groups and steady-state demography
 
 def make_ode_sim(mosquito='eir_only', with_age_bins=False, **kw):
-    """Helper: ODE human sim, optionally with age-structured demographics."""
-    extra = {}
     if with_age_bins:
-        extra['age_data']       = _ode_age_data()
-        extra['age_bin_edges']  = AGE_BIN_EDGES
-        extra['demographics']   = _ode_demographics()
-    return make_sim(human='ode', mosquito=mosquito, **extra, **kw)
+        kw.update(age_data=ms.make_age_data(), age_bin_edges=ms.AGE_BIN_EDGES, demographics=ms.make_steady_state_demographics())
+    return make_sim(mosquito=mosquito, solver='ode', **kw)
 
 
 @sc.timer()
 def test_ode_eir():
-    """ODE human + EIR-only mosquitoes: runs and produces infections."""
-    sc.heading('Testing ODE human + EIR-only...')
-    sim = make_ode_sim(mosquito='eir_only')
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.values.sum()
-    assert n_infected > 0, f'Expected infections, got {n_infected}'
-
-
-@sc.timer()
-def test_ode_agents():
-    """ODE human + agent-based mosquitoes: runs and produces infections."""
-    sc.heading('Testing ODE human + agents...')
-    # init_prev=0 is the production default; seed 1% here so mosquitoes
-    # can pick up infections and bootstrap transmission.
-    sim = make_ode_sim(mosquito='agents', human_pars=dict(init_prev=0.01))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.values.sum()
-    assert n_infected > 0, f'Expected infections, got {n_infected}'
+    sim = make_ode_sim(mosquito='eir_only').run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected infections'
 
 
 @sc.timer()
 def test_ode_ode():
-    """ODE human + ODE mosquitoes: runs and produces infections."""
-    sc.heading('Testing ODE human + ODE mosquitoes...')
-    sim = make_ode_sim(mosquito='ode', human_pars=dict(init_prev=0.01))
-    sim.run()
-    n_infected = sim.diseases[0].results.n_infected.values.sum()
-    assert n_infected > 0, f'Expected infections, got {n_infected}'
+    sim = make_ode_sim(mosquito='ode', init_prev=0.01).run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected infections'
+
+
+@sc.timer()
+def test_ode_seis():
+    sim = make_ode_sim(mosquito='ode', human='seis', init_prev=0.01).run()
+    assert sim.results.malaria.I.sum() > 0, 'Expected infections'
 
 
 @sc.timer()
 def test_ode_human_results():
-    """ODE human result arrays are populated, non-negative, and prevalence is in [0, 1]."""
-    sc.heading('Testing ODE human result arrays...')
-    sim = make_ode_sim(mosquito='eir_only')
-    sim.run()
-
-    res = sim.diseases[0].results
-    assert (res.n_susceptible.values  >= 0).all(), 'Sh went negative'
-    assert (res.n_infected.values     >= 0).all(), 'Ih went negative'
-    assert (res.new_infections.values >= 0).all(), 'new_infections went negative'
-
-    N = res.n_susceptible.values + res.n_infected.values
-    prev = res.n_infected.values / N
-    assert (prev >= 0).all() and (prev <= 1).all(), \
-        f'Prevalence out of [0,1]: min={prev.min():.3f}, max={prev.max():.3f}'
+    sim = make_ode_sim(mosquito='eir_only').run()
+    res = sim.results.malaria
+    for key in ['S', 'I', 'infections']:
+        assert (res[key] >= 0).all(), f'{key} went negative'
+    assert ((res.prevalence >= 0) & (res.prevalence <= 1)).all(), 'Prevalence out of [0, 1]'
 
 
 @sc.timer()
 def test_ode_population_stable():
-    """With age-bin demographics, ODE total population stays within 1 % over 5 years."""
-    sc.heading('Testing ODE population stability with demographics...')
-    sim = make_ode_sim(mosquito='eir_only', with_age_bins=True,
-                       stop=2005, nodes=ms.NodeGrid(populations=[n_agents]))
-    sim.run()
-
-    d = sim.diseases[0]
-    N_init  = (d._Sh + d._Ih).sum()
-    N_start = n_agents
-    drift_pct = abs(N_init - N_start) / N_start * 100
-    assert drift_pct < 1.0, \
-        f'ODE population drifted {drift_pct:.2f}% over 5 years (threshold 1%)'
+    sim = make_ode_sim(with_age_bins=True, stop=2005).run()
+    res = sim.results.malaria
+    people = res.S + res.I
+    drift = abs(people[-1] - n_agents)/n_agents*100
+    assert drift < 1.0, f'ODE population drifted {drift:.2f}% over 5 years (threshold 1%)'
 
 
 @sc.timer()
 def test_ode_age_distribution_stable():
-    """With age-bin demographics, per-bin populations stay within 10 % of initial over 5 years."""
-    sc.heading('Testing ODE age-bin distribution stability...')
-    import numpy as np
-    sim = make_ode_sim(mosquito='eir_only', with_age_bins=True,
-                       stop=2005, nodes=ms.NodeGrid(populations=[n_agents]))
-    sim.run()
-
-    d = sim.diseases[0]
-    fracs      = np.array(AGE_BIN_FRACTIONS) / sum(AGE_BIN_FRACTIONS)
-    init_bins  = n_agents * fracs
-    n_bins     = d._n_bins
-    final_bins = (d._Sh.raw + d._Ih.raw).reshape(-1, n_bins).sum(axis=0)
-
+    sim = make_ode_sim(with_age_bins=True, stop=2005).run()
+    res = sim.results.malaria
+    ages = res.S.by('age') + res.I.by('age')
+    fracs = np.array(ms.AGE_BIN_FRACTIONS)/sum(ms.AGE_BIN_FRACTIONS)
     meaningful = fracs >= 0.01
-    drifts     = abs((final_bins[meaningful] - init_bins[meaningful]) / init_bins[meaningful]) * 100
-    max_drift  = drifts.max()
-    assert max_drift < 10.0, \
-        f'Largest per-bin drift was {max_drift:.1f}% over 5 years (threshold 10%)'
+    drifts = abs(ages[-1][meaningful] - ages[0][meaningful])/ages[0][meaningful]*100
+    assert drifts.max() < 10.0, f'Largest drift of an age group was {drifts.max():.1f}% over 5 years (threshold 10%)'
 
 
 @sc.timer()
 def test_ode_higher_eir_more_infections():
-    """ODE human: higher EIR produces more cumulative infections."""
-    sc.heading('Testing ODE human: higher EIR → more infections...')
-    lo_nodes = ms.NodeGrid(populations=[n_agents], eir=[[1]  * 12])
-    hi_nodes = ms.NodeGrid(populations=[n_agents], eir=[[20] * 12])
-
-    sim_lo = make_ode_sim(mosquito='eir_only', nodes=lo_nodes)
-    sim_hi = make_ode_sim(mosquito='eir_only', nodes=hi_nodes)
-    sim_lo.run()
-    sim_hi.run()
-
-    cum_lo = sim_lo.diseases[0].results.new_infections.values.sum()
-    cum_hi = sim_hi.diseases[0].results.new_infections.values.sum()
-    assert cum_hi > cum_lo, \
-        f'Expected more infections with EIR=20 vs EIR=1, got {cum_hi} vs {cum_lo}'
+    lo = make_ode_sim(eir=1).run().results.malaria.infections.sum()
+    hi = make_ode_sim(eir=20).run().results.malaria.infections.sum()
+    assert hi > lo, f'Expected more infections with EIR=20 than EIR=1, got {hi} vs {lo}'
 
 
 @sc.timer()
 def test_ode_higher_b_more_infections():
-    """ODE human: higher prob_human_infected_on_bite (b) produces more infections."""
-    sc.heading('Testing ODE human: higher b → more infections...')
-    sim_lo = make_ode_sim(mosquito='eir_only', human_pars=dict(prob_human_infected_on_bite=0.1))
-    sim_hi = make_ode_sim(mosquito='eir_only', human_pars=dict(prob_human_infected_on_bite=0.9))
-    sim_lo.run()
-    sim_hi.run()
-
-    cum_lo = sim_lo.diseases[0].results.new_infections.values.sum()
-    cum_hi = sim_hi.diseases[0].results.new_infections.values.sum()
-    assert cum_hi > cum_lo, \
-        f'Expected more infections with b=0.9 vs b=0.1, got {cum_hi} vs {cum_lo}'
+    lo = make_ode_sim(prob_human_infected_on_bite=0.1).run().results.malaria.infections.sum()
+    hi = make_ode_sim(prob_human_infected_on_bite=0.9).run().results.malaria.infections.sum()
+    assert hi > lo, f'Expected more infections with b=0.9 than b=0.1, got {hi} vs {lo}'
 
 
 @sc.timer()
 def test_ode_multinode_human():
-    """ODE human works with a multi-node grid; each node accumulates infections."""
-    sc.heading('Testing ODE human with multi-node grid...')
-    nodes = ms.NodeGrid(
-        populations = [600, 400],
-        eir         = [[10] * 12, [3] * 12],
-    )
-    sim = make_ode_sim(mosquito='eir_only', nodes=nodes)
-    sim.run()
-
-    d      = sim.diseases[0]
-    Ih_mat = d._Ih.raw.reshape(2, d._n_bins)
-    assert Ih_mat[0].sum() > 0, 'Node 0 had no infections'
-    assert Ih_mat[1].sum() > 0, 'Node 1 had no infections'
-    assert Ih_mat[0].sum() > Ih_mat[1].sum(), \
-        'Expected higher-EIR node 0 to have more infections than node 1'
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[600, 400])
+    sim = make_ode_sim(nodes=nodes, eir=[10, 3]).run()
+    inf = sim.results.malaria.I.by('patch').sum(axis=0)
+    assert (inf > 0).all(), 'Each node should have infections'
+    assert inf[0]/600 > inf[1]/400, 'Expected the higher-EIR node 0 to have a higher prevalence'
 
 
 @sc.timer()
-def test_ode_single_bin_backward_compat():
-    """ODE human with no age_bin_edges runs in single-bin mode (backward compatible)."""
-    sc.heading('Testing ODE human single-bin (no age structure)...')
-    sim = make_ode_sim(mosquito='eir_only')
-    sim.run()
+def test_agents_and_ode_agree():
+    """ One declared model, as agents and as an ODE: prevalence after a year within 0.03 (with an exponential infectious period, which is what the ODE takes) """
+    kw = dict(mosquito='ode', init_prev=0.1, nodes=[5000], infection_duration=ss.expon(ss.days(200)))
+    prev = [make_sim(solver=solver, **kw).run().results.malaria.prevalence[-1] for solver in ['abm', 'ode']]
+    assert abs(prev[0] - prev[1]) < 0.03, f'Agents and ODE disagree: {prev}'
 
-    d = sim.diseases[0]
-    assert d._n_bins == 1,               f'Expected 1 bin, got {d._n_bins}'
-    assert d._Sh.raw.shape == (1,),      f'Expected shape (1,), got {d._Sh.raw.shape}'
-    assert float(d._Ih.raw.sum()) > 0,  'Expected infections in single-bin mode'
 
+# Nodes
 
 @sc.timer()
 def test_node_population_assignment():
-    """Initial node counts match NodeGrid populations exactly.
-
-    NodeGrid(populations=[10, 6, 4]) must put exactly 10 agents in node 0,
-    6 in node 1, and 4 in node 2 on the first timestep.
-    """
-    import numpy as np
-    sc.heading('Testing node population assignment...')
-
-    pops  = [10, 6, 4]
-    nodes = ms.NodeGrid(populations=pops)
-    sim   = make_sim(human='sis', mosquito='eir_only', nodes=nodes, stop=2001)
+    """ People start in each node in proportion to its population """
+    pops = [500, 300, 200]
+    nodes = ss.geo.geography(names=['a', 'b', 'c'], pop=pops)
+    sim = make_sim(nodes=nodes)
     sim.init()
-    sim.run(until=sim.t.start + sim.dt)   # one step so _malaria_pre_step_state fires
+    counts = np.bincount(np.asarray(sim.people.patch[sim.people.auids], dtype=int), minlength=3)
+    assert np.allclose(counts, pops, atol=50), f'Expected about {pops} people in the nodes, got {counts}'
 
-    disease  = sim.diseases[0]
-    node_ids = np.asarray(disease.node_id[sim.people.auids], dtype=int)
 
-    for nid, expected in enumerate(pops):
-        count = int((node_ids == nid).sum())
-        assert count == expected, (
-            f'Node {nid}: expected exactly {expected} agents, got {count}'
-        )
+@sc.timer()
+def test_node_population_kept_with_demography():
+    """ Newborns join the nodes in proportion, so the nodes keep their shares """
+    pops = [500, 300, 200]
+    nodes = ss.geo.geography(names=['a', 'b', 'c'], pop=pops)
+    sim = make_sim(nodes=nodes, stop=2005, age_data=ms.make_age_data(), demographics=ms.make_steady_state_demographics()).run()
+    counts = np.bincount(np.asarray(sim.people.patch[sim.people.auids], dtype=int), minlength=3)
+    assert np.allclose(counts/counts.sum(), np.array(pops)/sum(pops), atol=0.05), f'Node shares drifted: {counts}'
 
 
 @sc.timer()
 def test_no_cross_node_transmission_eir_only():
-    """EIR does not leak across nodes (eir_only mosquitoes).
-
-    Node 0 has EIR=10; node 1 has EIR=0.  After running for 90 days, every
-    agent assigned to node 1 must remain susceptible — the non-zero EIR in
-    node 0 must not reach them.
-    """
-    import numpy as np
-    sc.heading('Testing no cross-node transmission (eir_only)...')
-
-    nodes = ms.NodeGrid(
-        populations = [500, 500],
-        eir         = [[10] * 12, [0] * 12],
-    )
-    # init_prev=0: disable SIS's 1% initial seeding so node 1 truly starts clean.
-    sim = make_sim(human='sis', mosquito='eir_only', nodes=nodes,
-                   stop=2000 + 90/365,
-                   human_pars=dict(init_prev=ss.bernoulli(p=0)))
-    sim.run()
-
-    disease  = sim.diseases[0]
-    alive    = sim.people.auids
-    nids     = np.asarray(disease.node_id[alive], dtype=int)
-    node1    = alive[nids == 1]
-
-    n_infected_node1 = int(np.asarray(disease.infected[node1], dtype=bool).sum())
-    assert n_infected_node1 == 0, (
-        f'Cross-node EIR leak detected: {n_infected_node1} agents in node 1 '
-        f'became infected despite EIR=0 in node 1.'
-    )
-
-    n_infected_node0 = int(np.asarray(disease.infected[alive[nids == 0]], dtype=bool).sum())
-    assert n_infected_node0 > 0, (
-        f'Node 0 (EIR=10) had no infections — something else is wrong.'
-    )
+    """ The EIR of one node does not reach people in another """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    sim = make_sim(nodes=nodes, eir=[10, 0], stop=2000 + 90/365).run()
+    inf = sim.results.malaria.infections.by('patch').sum(axis=0)
+    assert inf[1] == 0, f'Cross-node EIR leak: {inf[1]} infections in node b, whose EIR is 0'
+    assert inf[0] > 0, 'Node a (EIR=10) had no infections'
 
 
 @sc.timer()
 def test_no_cross_node_transmission_agents():
-    """Mosquitoes and transmission are strictly node-local (agent-based mosquitoes).
+    """ Mosquitoes and transmission are node-local (mosquito agents): seeding node b leaves node a uninfected """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
+                   interventions=seed(coverage=0.5, where=ss.ppl.patch == 'b')).run()
+    inf = sim.results.malaria.I.by('patch').sum(axis=0)
+    assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
+    assert inf[1] > 0, 'Node b was not seeded'
 
-    Two equal nodes start with the same mosquito emergence rate.  An Outbreak
-    seeds 50% of node 1 at t=0; node 0 starts with zero infections.
-    Because node 0 mosquitoes only bite node 0 humans (who are all susceptible),
-    they never become infectious and therefore cannot transmit to node 0 humans.
-    After 90 days, every agent in node 0 must still be susceptible.
-    """
-    import numpy as np
-    sc.heading('Testing no cross-node transmission (agent mosquitoes)...')
 
-    nodes = ms.NodeGrid(
-        populations = [500, 500],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name        = 'seed_node1',
-                products    = ms.Outbreak(),
-                start       = 2000,
-                eligibility = ms.HumanEligibility(node_ids=[1]),
-                coverage    = 0.5,
-            )
-        ])
-
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2000 + 90/365,
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease   = sim.diseases[0]
-    alive_end = sim.people.auids
-    nids_end  = np.asarray(disease.node_id[alive_end], dtype=int)
-    node0_end = alive_end[nids_end == 0]
-
-    n_infected_node0 = int(np.asarray(disease.infected[node0_end], dtype=bool).sum())
-    assert n_infected_node0 == 0, (
-        f'Cross-node mosquito transmission detected: {n_infected_node0} agents '
-        f'in node 0 became infected despite only node 1 being seeded.'
-    )
+@sc.timer()
+def test_no_cross_node_transmission_ode():
+    """ The same with mosquitoes as counts """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    sim = make_sim(mosquito='ode', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
+                   interventions=seed(coverage=0.5, where=ss.ppl.patch == 'b')).run()
+    inf = sim.results.malaria.I.by('patch').sum(axis=0)
+    assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
 
 
 @sc.timer()
 def test_outbreak_seeds_node_no_cross_node_spread():
-    """Outbreak infects node 0 on day 10; node 1 stays clean through day 30.
-
-    Two equal nodes, 1000 agents each, no seasonality, agent-based mosquitoes.
-    An Outbreak covers 100% of node 0 on day 10.  At day 30:
-      - Node 0 prevalence must be close to 100% (20 days post-infection is well
-        within the ~180-day SIS recovery window, so almost no one has recovered).
-      - Node 1 must still have zero infections — node 0 mosquitoes cannot reach
-        node 1 humans.
-    """
-    import numpy as np
-    sc.heading('Testing Outbreak seeds node 0, node 1 stays clean...')
-
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name        = 'seed_node0',
-                products    = ms.Outbreak(),
-                start       = 2000 + 10/365,
-                eligibility = ms.HumanEligibility(node_ids=[0]),
-                coverage    = 1.0,
-            )
-        ])
-
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2000 + 30/365,
-                   demographics=[],
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease  = sim.diseases[0]
-    alive    = sim.people.auids
-    nids     = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    n0_infected = int(np.asarray(disease.infected[node0], dtype=bool).sum())
-    n1_infected = int(np.asarray(disease.infected[node1], dtype=bool).sum())
-
-    prev_node0 = n0_infected / len(node0)
-    assert prev_node0 >= 0.95, (
-        f'Node 0 prevalence at day 30 was {prev_node0:.1%} — expected ≥95% '
-        f'since agents were infected on day 10 and recovery takes ~180 days.'
-    )
-    assert n1_infected == 0, (
-        f'Cross-node transmission detected: {n1_infected} agents in node 1 '
-        f'became infected despite only node 0 being seeded.'
-    )
+    """ An outbreak in node a on day 10: nearly all of node a is infected at day 30, and none of node b """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 30/365,
+                   interventions=seed(at='2000-01-11', where=ss.ppl.patch == 'a')).run()
+    prev = sim.results.malaria.prevalence.by('patch')[-1]
+    assert prev[0] >= 0.95, f'Node a prevalence at day 30 was {prev[0]:.1%}, expected >= 95%'
+    assert prev[1] == 0, f'Cross-node transmission: node b prevalence {prev[1]:.1%}'
 
 
 @sc.timer()
 def test_outbreak_seeds_both_nodes():
-    """Outbreak on day 10 infects both nodes; both show ≥95% prevalence at day 30.
+    """ An outbreak in both nodes, with sustained transmission: both near 100% at day 730 """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002,
+                   interventions=seed(at='2000-01-11')).run()
+    prev = sim.results.malaria.prevalence.by('patch')[-1]
+    assert (prev >= 0.95).all(), f'Prevalence at day 730 was {prev}, expected >= 95% in both nodes'
 
-    Two equal nodes, 1000 agents each, no births/deaths, no seasonality,
-    agent-based mosquitoes.  An Outbreak covers 100% of both nodes on day 10.
-    At day 30 (20 days post-infection, well within the ~180-day SIS recovery
-    window), almost no one has recovered so both nodes must be near 100%.
-    """
-    import numpy as np
-    sc.heading('Testing Outbreak seeds both nodes...')
 
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
+# Vaccines and nodes
 
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name     = 'seed_both',
-                products = ms.Outbreak(),
-                start    = 2000 + 10/365,
-                coverage = 1.0,
-            )
-        ])
-
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2000 + 730/365,
-                   demographics=[],
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease = sim.diseases[0]
-    alive   = sim.people.auids
-    nids    = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    prev_node0 = np.asarray(disease.infected[node0], dtype=bool).mean()
-    prev_node1 = np.asarray(disease.infected[node1], dtype=bool).mean()
-
-    assert prev_node0 >= 0.95, (
-        f'Node 0 prevalence at day 730 was {prev_node0:.1%} — expected ≥95% '
-        f'since both nodes were seeded on day 10 with sustained transmission.'
-    )
-    assert prev_node1 >= 0.95, (
-        f'Node 1 prevalence at day 730 was {prev_node1:.1%} — expected ≥95% '
-        f'since both nodes were seeded on day 10 with sustained transmission.'
-    )
+def vaccinate(where=None, at='2000-04-10', coverage=1.0):
+    return ss.vaccinate(ss.Vaccine(efficacy=1.0), at=at, coverage=coverage, where=where)
 
 
 @sc.timer()
 def test_vaccine_clears_infection_both_nodes():
-    """100% permanent vaccine distributed on day 100 drives both nodes to zero by day 730.
-
-    Two equal nodes, 1000 agents each, no births/deaths, no seasonality,
-    agent-based mosquitoes.  An Outbreak seeds 100% of both nodes on day 10.
-    A vaccine with 100% initial efficacy and infinite box duration is distributed
-    to 100% of both nodes on day 100.  After vaccination, existing infections run
-    their course (~180-day expected recovery) and no new infections can occur
-    (prob_acquire = 0).  By day 730 every infection must have cleared.
-    """
-    import numpy as np
-    sc.heading('Testing 100% vaccine clears both nodes by day 730...')
-
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name     = 'seed_both',
-                products = ms.Outbreak(),
-                start    = 2000 + 10/365,
-                coverage = 1.0,
-            ),
-            ms.InterventionDistributorScheduled(
-                name     = 'vaccinate_both',
-                products = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start    = 2000 + 100/365,
-                coverage = 1.0,
-            ),
-        ])
-
-    # Use a short fixed infectious period so all infections clear well before day 730.
-    # The log-normal default (mean=200d, std=200d) has a right tail that can exceed
-    # 2 years, which would cause spurious failures in the clearance assertion.
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2000 + 730/365,
-                   demographics=[],
-                   human_pars=dict(infection_duration_years=ss.constant(v=30/365)),
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease = sim.diseases[0]
-    alive   = sim.people.auids
-    nids    = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    n0_infected = int(np.asarray(disease.infected[node0], dtype=bool).sum())
-    n1_infected = int(np.asarray(disease.infected[node1], dtype=bool).sum())
-
-    assert n0_infected == 0, (
-        f'Node 0 still had {n0_infected} infections at day 730 despite 100% '
-        f'permanent vaccine — all infections should have cleared by now.'
-    )
-    assert n1_infected == 0, (
-        f'Node 1 still had {n1_infected} infections at day 730 despite 100% '
-        f'permanent vaccine — all infections should have cleared by now.'
-    )
+    """ A permanent vaccine for everyone on day 100: no new infections, so every infection has cleared by day 730 """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
+                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate()]).run()
+    inf = infected_by_node(sim)
+    assert (inf == 0).all(), f'Infections left at day 730 despite a permanent vaccine: {inf}'
 
 
 @sc.timer()
 def test_vaccine_node0_only_clears_node0_not_node1():
-    """Vaccine on node 0 only: node 0 clears, node 1 stays endemic at day 730.
-
-    Same setup as test_vaccine_clears_infection_both_nodes, but the vaccine is
-    distributed only to node 0.  Node 0 must reach zero prevalence (vaccine
-    blocks new infections and existing ones clear).  Node 1 is never vaccinated
-    so transmission continues unimpeded — prevalence must remain near 100%.
-    """
-    import numpy as np
-    sc.heading('Testing vaccine on node 0 only: node 0 clears, node 1 stays endemic...')
-
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name     = 'seed_both',
-                products = ms.Outbreak(),
-                start    = 2000 + 10/365,
-                coverage = 1.0,
-            ),
-            ms.InterventionDistributorScheduled(
-                name        = 'vaccinate_node0',
-                products    = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start       = 2000 + 100/365,
-                eligibility = ms.HumanEligibility(node_ids=[0]),
-                coverage    = 1.0,
-            ),
-        ])
-
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2000 + 730/365,
-                   demographics=[],
-                   human_pars=dict(infection_duration_years=ss.constant(v=30/365)),
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease = sim.diseases[0]
-    alive   = sim.people.auids
-    nids    = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    n0_infected = int(np.asarray(disease.infected[node0], dtype=bool).sum())
-    n1_infected = int(np.asarray(disease.infected[node1], dtype=bool).sum())
-
-    assert n0_infected == 0, (
-        f'Node 0 still had {n0_infected} infections at day 730 despite 100% '
-        f'permanent vaccine — all infections should have cleared.'
-    )
-
-    prev_node1 = n1_infected / len(node1)
-    assert prev_node1 >= 0.95, (
-        f'Node 1 prevalence at day 730 was {prev_node1:.1%} — expected ≥95% '
-        f'since node 1 was never vaccinated and has sustained transmission.'
-    )
+    """ The vaccine in node a only: node a clears, node b stays endemic """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
+                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate(where=ss.ppl.patch == 'a')]).run()
+    prev = sim.results.malaria.prevalence.by('patch')[-1]
+    assert prev[0] == 0, f'Node a still had prevalence {prev[0]:.1%} despite a permanent vaccine'
+    assert prev[1] >= 0.95, f'Node b prevalence was {prev[1]:.1%}, expected >= 95% without the vaccine'
 
 
 @sc.timer()
-def test_vaccine_prob_acquire_applied_and_persists():
-    """prob_acquire is 0 for vaccinated agents and 1 for unvaccinated after each step.
-
-    Vaccination fires on day 100 for node 0 only (100% coverage, infinite box).
-    The execution order each step is:
-      1. step_state (_do_disease_transitions) resets prob_acquire = 1.0 for all
-      2. MalariaVaccineUpdater sets prob_acquire = 0 for vaccinated agents
-      3. malariahumansis.step reads prob_acquire for transmission
-    At the end of every step after day 100, vaccinated agents (node 0) must have
-    prob_acquire = 0 and unvaccinated agents (node 1) must have prob_acquire = 1.
-    """
-    import numpy as np
-    sc.heading('Testing prob_acquire applied and persists after vaccination...')
-
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        emergence   = [[1.0] * 12, [1.0] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name        = 'vaccinate_node0',
-                products    = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start       = 2000 + 100/365,
-                eligibility = ms.HumanEligibility(node_ids=[0]),
-                coverage    = 1.0,
-            )
-        ])
-
-    # Run a few steps past the vaccine day so MalariaVaccineUpdater has re-applied.
-    # Use steady-state demographics so that unvaccinated newborns enter the
-    # population — this prevents the test from trivially passing simply because
-    # every alive agent was vaccinated.
-    # Run to year 2002 so ~2 years of births produce a meaningful number of
-    # unvaccinated newborns in node 0 alongside the vaccinated original cohort.
-    sim = make_sim(human='sis', mosquito='agents', nodes=nodes,
-                   stop=2002,
-                   demographics=ms.make_steady_state_demographics(),
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease = sim.diseases[0]
-    alive   = sim.people.auids
-    nids    = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    # With demographics, not all node 0 agents are vaccinated — unvaccinated
-    # newborns have prob_acquire=1.  The invariant is biconditional:
-    #   vaccinated (vaccine_decay_end > 0)  ↔  prob_acquire == 0
-    decay_end_all = np.asarray(disease.vaccine_decay_end[alive], dtype=float)
-    has_vaccine   = decay_end_all > 0
-    prob_all      = np.asarray(disease._prob_acquire_indoor[alive], dtype=float)
-    is_protected  = prob_all == 0.0
-
-    # Sanity: some node 0 agents must be vaccinated and some (newborns) must not be.
-    nids_all = np.asarray(disease.node_id[alive], dtype=int)
-    assert has_vaccine[nids_all == 0].any(), 'No vaccinated agents found in node 0.'
-    assert (~has_vaccine[nids_all == 0]).any(), 'No unvaccinated agents in node 0 — newborns missing.'
-    assert not has_vaccine[nids_all == 1].any(), 'Node 1 should have no vaccinated agents.'
-
-    n_protected_no_vacc  = int((is_protected & ~has_vaccine).sum())
-    n_vacc_not_protected = int((has_vaccine  & ~is_protected).sum())
-
-    assert n_protected_no_vacc == 0, (
-        f'{n_protected_no_vacc} agents have prob_acquire=0 but no vaccine record '
-        f'(vaccine_decay_end <= 0).'
-    )
-    assert n_vacc_not_protected == 0, (
-        f'{n_vacc_not_protected} agents have a vaccine record but prob_acquire != 0 '
-        f'— MalariaVaccineUpdater is not applying protection correctly.'
-    )
+def test_vaccine_held_by_those_vaccinated():
+    """ Only people in node a who were alive on day 100 hold the vaccine, and none of them is infected afterwards """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    vx = ss.Vaccine(efficacy=1.0)
+    sim = make_sim(mosquito='eir_only', nodes=nodes, eir=[30, 30], stop=2002, age_data=ms.make_age_data(), demographics=ms.make_steady_state_demographics(),
+                   infection_duration=ss.constant(ss.days(30)), interventions=ss.vaccinate(vx, at='2000-04-10', coverage=1.0, where=ss.ppl.patch == 'a')).run()
+    people = sim.people
+    uids = people.auids
+    holds = np.asarray(people[vx.dim][uids], dtype=bool)
+    patch = np.asarray(people.patch[uids], dtype=int)
+    assert holds[patch == 0].any(), 'No vaccinated people in node a'
+    assert (~holds[patch == 0]).any(), 'Everyone in node a holds the vaccine: newborns should not'
+    assert not holds[patch == 1].any(), 'Node b should have no vaccinated people'
+    infected = np.asarray(sim.diseases.malaria.I.raw[uids], dtype=bool)
+    assert not (holds & infected).any(), 'Someone with a permanent vaccine of full efficacy was infected after it'
 
 
 @sc.timer()
-def test_prob_acquire_zero_blocks_transmission():
-    """prob_acquire=0 on line 475 of human_base.py must multiply infection probability to zero.
-
-    Both nodes receive identical high EIR.  Node 0 is vaccinated (prob_acquire=0)
-    on day 1 before any transmission occurs.  After 30 days, node 0 must have zero
-    infections (p * 0 = 0) while node 1 must have many (p * 1 = p).
-
-    Uses EIR-only mosquitoes so EIR is deterministic and both nodes have identical
-    exposure — any difference in infection counts is purely due to prob_acquire.
-    """
-    import numpy as np
-    sc.heading('Testing prob_acquire=0 blocks all transmission...')
-
-    nodes = ms.NodeGrid(
-        populations = [1000, 1000],
-        eir         = [[30] * 12, [30] * 12],
-    )
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name        = 'vaccinate_node0',
-                products    = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start       = 2000,
-                eligibility = ms.HumanEligibility(node_ids=[0]),
-                coverage    = 1.0,
-            )
-        ])
-
-    sim = make_sim(human='sis', mosquito='eir_only', nodes=nodes,
-                   stop=2000 + 30/365,
-                   demographics=[],
-                   build_campaign=build_campaign)
-    sim.run()
-
-    disease = sim.diseases[0]
-    alive   = sim.people.auids
-    nids    = np.asarray(disease.node_id[alive], dtype=int)
-
-    node0 = alive[nids == 0]
-    node1 = alive[nids == 1]
-
-    n0_infected = int(np.asarray(disease.infected[node0], dtype=bool).sum())
-    n1_infected = int(np.asarray(disease.infected[node1], dtype=bool).sum())
-
-    assert n0_infected == 0, (
-        f'Node 0 had {n0_infected} infections despite prob_acquire=0 — '
-        f'line 475 of human_base.py is not zeroing infection probability.'
-    )
-    assert n1_infected > 0, (
-        f'Node 1 had no infections despite EIR=30 — something else is wrong.'
-    )
+def test_full_protection_blocks_transmission():
+    """ A vaccine of full efficacy at the start: no infections in node a, many in node b, at the same EIR """
+    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    sim = make_sim(nodes=nodes, eir=[30, 30], stop=2000 + 30/365, interventions=vaccinate(where=ss.ppl.patch == 'a', at='2000-01-01')).run()
+    inf = sim.results.malaria.infections.by('patch').sum(axis=0)
+    assert inf[0] == 0, f'{inf[0]} infections in node a despite full protection'
+    assert inf[1] > 0, 'No infections in node b'
 
 
 @sc.timer()
 def test_ode_vaccine_blocks_new_infections():
-    """100% permanent vaccine on day 1 reduces ODE new infections to ~0.
-
-    Single node, EIR=30 (deterministic, eir_only mosquitoes). init_prev=0.01
-    seeds 1% initial infections. Vaccine fires on day 1 with 100% coverage.
-    After vaccine, _prob_acquire[0] = 0 so new_inf = eir_dt * b * Sh * 0 = 0
-    each subsequent step. Total new_infections accumulated after day 3 must
-    be ~0 (allowing 3 steps for the vaccine-firing step itself).
-    """
-    import numpy as np
-    sc.heading('Testing ODE 100% vaccine blocks all new infections...')
-
-    nodes = ms.NodeGrid(populations=[1000], eir=[[30.0] * 12])
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name     = 'vaccinate_all',
-                products = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start    = 2000 + 1/365,
-                coverage = 1.0,
-            ),
-        ])
-
-    sim = make_ode_sim(nodes=nodes, stop=2000 + 30/365,
-                       demographics=[],
-                       build_campaign=build_campaign,
-                       human_pars=dict(init_prev=0.01))
-    sim.run()
-
-    disease    = sim.diseases[0]
-    new_inf    = disease.results.new_infections.values
-    total_after = new_inf[3:].sum()
-
-    assert total_after < 0.1, (
-        f'Expected ~0 new infections after 100% ODE vaccine; got {total_after:.3f}'
-    )
+    """ As an ODE: a permanent vaccine for everyone on day 1 stops new infections """
+    sim = make_ode_sim(eir=30, stop=2000 + 30/365, init_prev=0.01, interventions=vaccinate(at='2000-01-02')).run()
+    after = sim.results.malaria.infections[3:].sum()
+    assert after < 0.1, f'Expected no new infections after the vaccine, got {after:.3f}'
 
 
 @sc.timer()
 def test_ode_vaccine_reduces_infections_vs_no_vaccine():
-    """ODE 80% vaccine reduces total new infections versus an unvaccinated run.
-
-    Same single-node, EIR=30 sim run twice: once with no campaign and once
-    with an 80%-coverage vaccine on day 30. The vaccinated run must accumulate
-    fewer total new infections over the full year.
-    """
-    sc.heading('Testing ODE vaccine reduces infections vs no vaccine...')
-
-    nodes = ms.NodeGrid(populations=[1000], eir=[[30.0] * 12])
-    kw    = dict(nodes=nodes, stop=2001, demographics=[],
-                 rand_seed=42, human_pars=dict(init_prev=0.01))
-
-    sim_no_vax = make_ode_sim(**kw)
-    sim_no_vax.run()
-
-    def build_campaign(sim, eir_only=False):
-        return ms.Campaign(sim, [
-            ms.InterventionDistributorScheduled(
-                name     = 'vaccinate_80pct',
-                products = ms.MalariaVaccine(waning=ms.WaningEffect()),
-                start    = 2000 + 30/365,
-                coverage = 0.8,
-            ),
-        ])
-
-    sim_vax = make_ode_sim(**kw, build_campaign=build_campaign)
-    sim_vax.run()
-
-    inf_no_vax = sim_no_vax.diseases[0].results.new_infections.values.sum()
-    inf_vax    = sim_vax.diseases[0].results.new_infections.values.sum()
-
-    assert inf_vax < inf_no_vax, (
-        f'Expected vaccine to reduce infections: vax={inf_vax:.1f}, no_vax={inf_no_vax:.1f}'
-    )
+    """ As an ODE: a vaccine for 80% on day 30 gives fewer infections over the year """
+    kw = dict(eir=30, init_prev=0.01)
+    no_vax = make_ode_sim(**kw).run().results.malaria.infections.sum()
+    vax = make_ode_sim(**kw, interventions=vaccinate(at='2000-01-31', coverage=0.8)).run().results.malaria.infections.sum()
+    assert vax < no_vax, f'Expected fewer infections with the vaccine: {vax:.0f} vs {no_vax:.0f}'
 
 
+@sc.timer()
 def test_performance():
-    """Performance smoke test — not collected by pytest by default due to no assertion."""
-    sc.heading('Testing performance ...')
-    n_agents_perf = 10_000
-    n_days        = 730
-    start         = 2000
-    stop          = start + n_days / 365
-    nodes         = ms.NodeGrid(populations=[n_agents_perf])
-    sim           = make_sim(human='sis', mosquito='eir_only',
-                             nodes=nodes, start=start, stop=stop)
-    sim.run()
-    sc.printcyan(f'\nRun time for {n_agents_perf} agents and {n_days} days: {sim.elapsed:n} s')
+    """ A typical run: 10,000 agents for two years, daily """
+    T = sc.timer()
+    make_sim(nodes=[10_000], stop=2002).run()
+    sc.printcyan(f'Run time for 10,000 agents and 730 days: {T.toc(output=True):n} s')
 
 
 if __name__ == '__main__':
-    do_plot = False
-    sc.options(interactive=do_plot)
     T = sc.timer()
-
-    test_sis_eir()
-    test_seis_eir()
-    test_sis_agents()
-    test_sis_ode()
-    test_seis_ode()
-    test_ode_mosquito_results()
-    test_ode_multinode()
-    test_ode_more_emergence_more_infections()
-    test_higher_eir_more_infections()
-
-    test_ode_eir()
-    test_ode_agents()
-    test_ode_ode()
-    test_ode_human_results()
-    test_ode_population_stable()
-    test_ode_age_distribution_stable()
-    test_ode_higher_eir_more_infections()
-    test_ode_higher_b_more_infections()
-    test_ode_multinode_human()
-    test_ode_single_bin_backward_compat()
-    test_ode_vaccine_blocks_new_infections()
-    test_ode_vaccine_reduces_infections_vs_no_vaccine()
-    test_node_population_assignment()
-    test_no_cross_node_transmission_eir_only()
-    test_no_cross_node_transmission_agents()
-
-    test_performance()
-
+    for name, test in list(globals().items()):
+        if name.startswith('test_') and callable(test):
+            test()
     T.toc()
-
-    if do_plot:
-        plt.show()

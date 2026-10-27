@@ -1,5 +1,7 @@
 # malariasim Intervention Design
 
+> **Historical (Starsim 3).** This describes malariasim's own intervention machinery on Starsim 3: updaters, distributors, eligibility classes, campaigns, and per-model hooks for agents and the ODE. On Starsim 4 that machinery is gone: products are Starsim products (`ms.MalariaVaccine`, `ms.Bednet`, `ss.Treatment`), delivered by Starsim's deliveries (`ss.vaccinate()`, `ss.treat()`, `ss.Delivery()`), with targeting by `where=`; see `interventions_for_users.md`, and `v4_port_oct26.md` for the port. The design reasoning below (what each intervention does biologically, and how bed nets act on mosquitoes) still applies.
+
 ## Why We Diverge from `ss.Intervention`
 
 Starsim's `ss.Intervention` bundles two responsibilities: what the intervention does

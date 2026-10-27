@@ -1,7 +1,7 @@
 """
 run_malaria_variable_nodes.py — run malaria scenarios with a configurable node count.
 
-Generates a NodeGrid with a specified total population distributed uniformly at
+Generates nodes with a specified total population distributed uniformly at
 random across N nodes.  Each node gets a seasonal EIR and emergence profile that
 peaks in the same calendar month, but with a different seasonal shape (width),
 so nodes look epidemiologically distinct while remaining in a comparable
@@ -56,8 +56,7 @@ SIGMA_RANGE = (1.5, 4.0)
 
 AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
 AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
-AGE_DATA          = sc.dataframe(ms.make_age_data())
-DEMOGRAPHICS      = ms.make_steady_state_demographics()
+AGE_DATA          = ms.make_age_data()
 
 
 # -----------------------------------------------------------------------
@@ -87,7 +86,8 @@ def _wrapped_gaussian(peak_month, sigma):
 
 def make_node_grid(total_pop, n_nodes, peak_month=PEAK_MONTH, seed=GRID_SEED):
     """
-    Build an :class:`ms.NodeGrid` with *n_nodes* nodes.
+    Build *n_nodes* nodes: an ``ss.geo.geography``, and the parameters of each node
+    (``eir``, ``emergence``, ``f_indoor``) for ``ms.Sim``.
 
     Population
         A symmetric Dirichlet draw (uniform over the probability simplex)
@@ -130,12 +130,10 @@ def make_node_grid(total_pop, n_nodes, peak_month=PEAK_MONTH, seed=GRID_SEED):
         eir_profiles.append((shape * eir_means[i]).tolist())
         emergence_profiles.append((shape * em_means[i]).tolist())
 
-    return ms.NodeGrid(
-        populations = pops.tolist(),
-        eir         = eir_profiles,
-        emergence   = emergence_profiles,
-        f_indoor    = f_indoors.tolist(),
-    )
+    nodes = ss.geo.geography(names=[f'Node {i}' for i in range(n_nodes)], pop=pops.tolist()) if n_nodes > 1 else pops.tolist()
+    if n_nodes == 1: # One value, or one profile, for the one node
+        eir_profiles, emergence_profiles, f_indoors = eir_profiles[0], emergence_profiles[0], f_indoors[0]
+    return nodes, dict(eir=eir_profiles, emergence=emergence_profiles, f_indoor=np.asarray(f_indoors).tolist())
 
 
 # -----------------------------------------------------------------------
@@ -143,12 +141,13 @@ def make_node_grid(total_pop, n_nodes, peak_month=PEAK_MONTH, seed=GRID_SEED):
 # -----------------------------------------------------------------------
 
 def make_scenarios(node_grid):
-    """Return the four standard scenarios wired to *node_grid*."""
+    """Return the four standard scenarios wired to *node_grid* (the nodes, and their parameters)."""
+    nodes, node_pars = node_grid
     return [
-        dict(label='SIS + EIR-only',  human='sis',  mosquito='eir_only', nodes=node_grid),
-        dict(label='SEIS + EIR-only', human='seis', mosquito='eir_only', nodes=node_grid),
-        dict(label='SIS + agents',    human='sis',  mosquito='agents',   nodes=node_grid),
-        dict(label='SEIS + agents',   human='seis', mosquito='agents',   nodes=node_grid),
+        dict(label='SIS + EIR-only',  human='sis',  mosquito='eir_only', nodes=nodes, **node_pars),
+        dict(label='SEIS + EIR-only', human='seis', mosquito='eir_only', nodes=nodes, **node_pars),
+        dict(label='SIS + agents',    human='sis',  mosquito='agents',   nodes=nodes, **node_pars),
+        dict(label='SEIS + agents',   human='seis', mosquito='agents',   nodes=nodes, **node_pars),
     ]
 
 
@@ -193,26 +192,28 @@ def run_variable_nodes(
             dt           = ss.days(1),
             label        = label,
             rand_seed    = 0,
-            demographics = DEMOGRAPHICS,
-            analyzers    = ms.ResultsAnalyzer(),
+            demographics = ms.make_steady_state_demographics(),
             **scen,
         )
         sims.append(sim)
 
     monitor = ms.PerformanceMonitor() if do_monitor else None
-    msim    = ms.MalariaMultiSim(sims, monitor=monitor)
+    msim    = ms.MalariaMultiSim(sims)
 
     if do_monitor:
         for sim in msim.sims:
             print(f'Running: {sim.label}')
             monitor.start()
             sim.run()
-            monitor.stop(sim)
+            monitor.stop()
+            monitor.record(sim)
     else:
         msim.run()
 
     if do_plot:
         msim.plot_all(show_plots=show_plots, do_save=do_save)
+        if monitor is not None:
+            monitor.plot(show_plots=show_plots, do_save=do_save)
 
     return msim
 

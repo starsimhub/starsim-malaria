@@ -77,59 +77,32 @@ sim.pars.Nh                  — human population size
 
 ## malariasim Architecture
 
-`malariasim/` is a more complete agent-based malaria model with a spatial multi-node grid.
+`malariasim/` is a malaria model on Starsim 4 with a spatial multi-node grid. The model is one declared disease, so the same model runs as agents or as an ODE (`solver='abm'` or `solver='ode'`). The port from Starsim 3 is described in `v4_port_oct26.md`.
 
-### Module communication pattern
+### The model
 
-Human and mosquito modules are **fully decoupled** — neither imports the other. They communicate each timestep through a shared `NodeState` object (an `ss.Module` registered as a connector), discovered at runtime via the `_is_node_state` duck-type marker:
+`ms.Malaria` (`malariasim/malaria.py`) declares the states and transitions:
 
-```text
-Mosquito → Human  :  eir_indoor & eir_outdoor  (per-node, per-timestep)
-Human   → Mosquito:  p_inf_indoor & p_inf_outdoor & n_humans  (per-node, per-timestep)
-```
+- People: `S`, `E` (SEIS only), `I`; infected by indoor and outdoor bites (`bite_indoor`, `bite_outdoor`, at `b × f_indoor × EIR` and `b × (1 − f_indoor) × EIR`), recovering back to `S`.
+- The EIR comes from one of three mosquito models: `'ode'` (mosquitoes as counts `Sv`, `Ev`, `Iv`, states with `people=False`, which emerge per person, feed, incubate, and die), `'eir_only'` (an EIR given, by month and node), or `'agents'` (individual mosquitoes written as code in `ms.MosquitoAgents`, whose per-node EIR the people's rates read as `ss.by(patch=fn)`).
+- Nodes are a patch stratification (`ss.geo.geography`, `kind='space'`); per-node values (`eir`, `emergence`, `f_indoor`) are `ss.by(patch=...)`, and monthly profiles are `ss.timeseries` repeating each year (`ms.monthly()`).
+- Biting heterogeneity is a `biting` stratification with gamma-distributed levels, and the mosquitoes are infected by the biting-weighted count of infectious people (`(ss.by(biting=w)*I).n`); age-dependent biting is an `ss.by(age=...)` multiplier.
 
-There is a one-step lag on EIR because diseases run before connectors in Starsim's execution order.
+### Interventions
 
-### Execution order per timestep
-
-1. **Human disease step** (`ss.Disease.step` → `step_state` + `step`) — reads EIR from NodeState, writes `p_inf` and `n_humans` back
-2. **NodeState.step()** — no-op ordering anchor
-3. **Mosquito connector step** — reads `p_inf`/`n_humans`, writes EIR for next step
-
-### malariasim key design decisions
-
-- **Mosquitoes are connectors, not diseases.** Both `NodeState` and the mosquito module are registered as `connectors` in `ss.Sim`, not `diseases`. This is because Starsim runs diseases before connectors.
-- **Mosquito agents are separate from `ss.People`.** The agent-based mosquito module manages its own numpy arrays internally (pre-allocated to 3× max equilibrium population) to avoid mixing species in the human People object.
-- **EIR-based transmission bypasses Starsim networks.** `MalariaHumanBase.step()` overrides the default `ss.SIS.step()` to implement EIR-driven mosquito-to-human transmission directly, ignoring Starsim's contact network machinery.
-- **`ss.SIS` immunity is neutralized.** `imm_boost=0` disables the built-in immunity system since malaria immunity is not modeled at this level.
-- **Durations are in years, converted to timesteps.** Starsim stores time indices as integer steps. `set_prognoses()` divides year-denominated durations by `dt_year` to get step counts.
-
-### Spatial model
-
-`NodeGrid` defines static spatial configuration (populations, per-node EIR/emergence/indoor-bite-fraction). `NodeState` holds dynamic per-node fields updated each timestep. Agents are assigned to nodes at birth via `pop_fractions`. When no `NodeGrid` is provided, `Sim()` creates a single-node grid.
-
-### Extending the human model
-
-Inherit from `MalariaHumanBase` and override:
-
-- `_do_disease_transitions()` — disease-state progression (called inside `step_state()` template)
-- `set_prognoses(uids, sources)` — entry point for newly exposed agents
-- `_update_symptom_state()` — symptom classification from observables
-- `step_die(uids)` — reset extra states on agent death (call `super()`)
+Products are Starsim products delivered by Starsim's deliveries: vaccines as `ss.Vaccine` (waning as a box then a decay with `ss.box(dur=, decay=)`), `ms.Bednet` (an `ss.Vaccine` against indoor bites with four effects, each with its own waning, whose blocking and killing the mosquitoes read from its coverage, `itn.coverage`), drugs as `ss.Treatment(cure=dict(I=1.0))`, and outbreaks as `ss.Delivery(move=mal.S >> mal.I)`. Targeting is `where=` (e.g. `ss.ppl.patch == 'Rural'`). Waning by `ss.box()` runs under every solver; by any other function of time, as agents only.
 
 ### malariasim module map
 
-- `malariasim/sim.py` — `Sim(ss.Sim)` subclass wiring human + mosquito + NodeState together
-- `malariasim/human_base.py` — `MalariaHumanBase` (shared biting infrastructure, observable states, EIR transmission)
-- `malariasim/human_sis.py` — `MalariaHumanSIS` (thin SIS subclass)
-- `malariasim/human_seis.py` — `MalariaHumanSEIS` (adds exposed compartment with ~12-day incubation)
-- `malariasim/mosquito_eir_only.py` — `MosquitoesEirOnly` (fixed/seasonal EIR, no mosquito agents)
-- `malariasim/mosquito_agents.py` — `MosquitoesAdultFemaleAgentsOnly` (SEI agent-based mosquitoes)
-- `malariasim/node_grid.py` — `NodeGrid` (static spatial config)
-- `malariasim/node_state.py` — `NodeState` (dynamic per-node communication bus)
-- `malariasim/results.py` — `AgeBinPopulation` analyzer + `MalariaMultiSim` with plotting
+- `malariasim/malaria.py` — `Malaria` (the declared disease), `monthly()`, `per_node()`, and `mosquito_eir()` (the mosquito agents' EIR by node, which the rates read)
+- `malariasim/mosquito_agents.py` — `MosquitoAgents` (SEI mosquito agents, written as code)
+- `malariasim/interventions.py` — `Bednet`
+- `malariasim/sim.py` — `Sim(ss.Sim)`, assembling the disease, nodes, people, and interventions
+- `malariasim/defaults.py` — `CommonParams`, the age pyramid and node constants, `make_steady_state_demographics()` (declared `ss.birth`/`ss.death`), `make_age_data()`
+- `malariasim/utils.py` — `eir_to_params()` (the emergence that gives a target EIR)
+- `malariasim/results.py` — `MalariaMultiSim` with plotting
 - `malariasim/performance.py` — `PerformanceMonitor` (wall-clock + RSS tracking)
-- `run_malariasim.py` — entry point running 4 scenarios (SIS/SEIS × EIR-only/agents) with 3-node spatial grid
+- `run_malariasim.py` — entry point running 8 scenarios (SIS/SEIS as agents, SIS as an ODE × EIR-only/ODE/agent mosquitoes) with a 3-node spatial grid
 
 ## Dependencies
 

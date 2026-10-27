@@ -1,40 +1,18 @@
 """
 run_malariasim.py — run and compare malaria model configurations.
 
-Runs nine scenarios covering the three human models (SIS, SEIS, ODE) crossed
-with the three mosquito models (eir_only, ode, agents), then plots prevalence
-side by side.
+Runs eight scenarios: the two human models (SIS, SEIS) as agents and the SIS as
+an ODE (solver='ode'), crossed with the three mosquito models (eir_only, ode,
+agents; mosquito agents need human agents), then plots prevalence side by side.
 
 Usage
 -----
     python run_malariasim.py
 """
-import gc
 import os
 import sciris as sc
 import starsim as ss
 import malariasim as ms
-
-
-def _release_sim(sim):
-    """Free heavy runtime arrays after a monitored run.
-
-    Deletes the ss.People agent arrays and the mosquito connector's per-slot
-    arrays so the next sim starts with a clean heap.  Stored results
-    (sim.results, sim.analyzers) are kept for post-run plotting.
-    """
-    if hasattr(sim, 'people') and sim.people is not None:
-        del sim.people
-    _MOS_ARRAYS = ('alive', 'susceptible', 'exposed', 'infectious',
-                   'ti_infectious', 'ti_dead', 'node_id', 'Sm', 'Em', 'Im')
-    for conn in sim.connectors.values():
-        for attr in _MOS_ARRAYS:
-            if hasattr(conn, attr):
-                try:
-                    delattr(conn, attr)
-                except AttributeError:
-                    pass
-    gc.collect()
 
 
 # ------------------------------------------------------------------
@@ -60,8 +38,7 @@ for eir, shape in zip(TARGET_ANNUAL_EIR, SEASONAL_SHAPES):
 
 AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
 AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
-AGE_DATA          = sc.dataframe(ms.make_age_data(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS))
-DEMOGRAPHICS      = ms.make_steady_state_demographics(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS)
+AGE_DATA          = ms.make_age_data(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS)
 
 # ------------------------------------------------------------------
 # Simulation settings
@@ -72,171 +49,32 @@ STOP  = 2010
 
 # ------------------------------------------------------------------
 # Campaign — applied to all scenarios.
-# Outbreak (non-eir_only only): 15 % coverage at year 2000.1.
-# Vaccine (year 2001): 100 % coverage, nodes 0 & 2, 400-day box, no waning.
-# ITN     (year 2003): 500 % coverage, nodes 1 & 2
-# Drug    (year 2005): 50 % coverage, ages 0-20, nodes 0 & 1.
+# Outbreak (not eir_only): 15 % coverage early in 2000.
+# Vaccine (2003): 50 % coverage of under-30s, Peri-urban & Rural, 400-day box, no waning.
+# ITN     (2005): 50 % coverage, Urban & Rural.
+# Drug    (2007): 50 % coverage of under-20s, Urban & Peri-urban.
+# The vaccine and the ITN wane by boxes, which run as agents and as an ODE.
 # ------------------------------------------------------------------
 
-def build_campaign(sim, eir_only=False):
-    vaccine = ms.MalariaVaccine(name='vaccine', waning=ms.WaningEffect(
-        initial_efficacy    = 1.0,
-        box_duration        = ss.days(400),
-        decay_time_constant = ss.days(0),
-    ))
-    #bednet_0001 = ms.Bednet(
-    #    name      = "product_bednet_0001",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    #bednet_1001 = ms.Bednet(
-    #    name      = "product_bednet_1001",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    #bednet_0101 = ms.Bednet(
-    #    name      = "product_bednet_0101",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    #bednet_0011 = ms.Bednet(
-    #    name      = "product_bednet_0011",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    #bednet_0111 = ms.Bednet(
-    #    name      = "product_bednet_0111",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    #bednet_1111 = ms.Bednet(
-    #    name      = "product_bednet_1111",
-    #    repelling = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    blocking  = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    killing   = ms.WaningEffect(initial_efficacy=0.5, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #    usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(90), decay_time_constant=ss.days(0)),
-    #)
-    bednet = ms.Bednet(
-        name      = "product_bednet",
-        repelling = ms.WaningEffect(initial_efficacy=0.8, box_duration=ss.days(180), decay_time_constant=ss.days(0)),
-        blocking  = ms.WaningEffect(initial_efficacy=0.9, box_duration=ss.days(180), decay_time_constant=ss.days(0)),
-        killing   = ms.WaningEffect(initial_efficacy=0.6, box_duration=ss.days(180), decay_time_constant=ss.days(0)),
-        usage     = ms.WaningEffect(initial_efficacy=1.0, box_duration=ss.days(180), decay_time_constant=ss.days(0)),
-    )
-
-    campaign = ms.Campaign(sim)
-    if not eir_only:
-        campaign.add(
-            ms.InterventionDistributorScheduled(
-                name     = 'Outbreak',
-                products = ms.Outbreak(),
-                start    = START + 0.1,
-                coverage = 0.15,
-            )
-        )
-    if USE_INTERVENTIONS:
-        campaign.add(
-            ms.InterventionDistributorScheduled(
-                name        = 'vacc_yr1',
-                products    = vaccine,
-                start       = 2003,
-                eligibility = ms.HumanEligibility(min_age=ss.years(0),
-                                                  max_age=ss.years(30),
-                                                  node_ids=[1, 2]),
-                coverage    = 0.5,
-            )
-        )
-        #campaign.add(
-        #    ms.InterventionDistributorScheduled(
-        #        name        = 'vacc_yr1+200',
-        #        products    = vaccine,
-        #        start       = vac_start + 200/365,
-        #        eligibility = ms.HumanEligibility(min_age=ss.years(0),
-        #                                          max_age=ss.years(30),
-        #                                          node_ids=[0,1, 2]),
-        #        coverage    = 0.4,
-        #    )
-        #)
-        #campaign.add(
-        #    ms.InterventionDistributorScheduled(
-        #        name        = 'bednet_1001',
-        #        products    = bednet_1001,
-        #        start       = 2001,
-        #        eligibility = ms.HumanEligibility(node_ids=[0, 1, 2]),
-        #        coverage    = 1.0,
-        #    )
-        #)
-        #campaign.add(
-        #    ms.InterventionDistributorScheduled(
-        #        name        = 'bednet_0101',
-        #        products    = bednet_0101,
-        #        start       = 2002,
-        #        eligibility = ms.HumanEligibility(node_ids=[0, 1, 2]),
-        #        coverage    = 1.0,
-        #    )
-        #)
-        #campaign.add(
-        #    ms.InterventionDistributorScheduled(
-        #        name        = 'bednet_0011',
-        #        products    = bednet_0011,
-        #        start       = 2003.0,
-        #        eligibility = ms.HumanEligibility(node_ids=[0, 1, 2]),
-        #        coverage    = 1.0,
-        #    )
-        #)
-        #campaign.add(
-        #    ms.InterventionDistributorScheduled(
-        #        name        = 'bednet_0111',
-        #        products    = bednet_0111,
-        #        start       = 2004,
-        #        eligibility = ms.HumanEligibility(node_ids=[0, 1, 2]),
-        #        coverage    = 1.0,
-        #    )
-        #)
-        campaign.add(
-            ms.InterventionDistributorScheduled(
-                name        = 'bednet_2003',
-                products    = bednet,
-                start       = 2005.0,
-                eligibility = ms.HumanEligibility(node_ids=[0, 2]),
-                coverage    = 0.5,
-            )
-        )
-        campaign.add(
-            ms.InterventionDistributorScheduled(
-                name        = 'drug_yr5',
-                products    = ms.AntiMalarialDrug(mean_duration=ss.days(1.5)),
-                start       = 2007,
-                eligibility = ms.HumanEligibility(min_age=ss.years(0),
-                                                  max_age=ss.years(20),
-                                                  node_ids=[0, 1]),
-                coverage    = 0.5,
-            )
-        )
-    return campaign
+def campaign(mal):
+    """ The interventions, as a function of the disease (so the outbreak can name its states) """
+    out = []
+    if mal.mosquito != 'eir_only':
+        out.append(ss.Delivery(move=mal.S >> mal.I, at=ss.date('2000-02-06'), coverage=0.15, name='outbreak'))
+    if not USE_INTERVENTIONS:
+        return out
+    node = ss.ppl.patch
+    vaccine = ss.Vaccine(name='vaccine', efficacy=1.0, waning=ss.box(dur=ss.days(400)))
+    bednet = ms.Bednet(name='product_bednet', repelling=0.8, blocking=0.9, killing=0.6, usage=1.0, waning=ss.box(dur=ss.days(180)))
+    drug = ss.Treatment(name='drug', cure=dict(I=1.0))
+    out.append(ss.vaccinate(vaccine, at='2003-01-01', coverage=0.5, where=(ss.ppl.age < 30) & (node != 'Urban'), name='vacc_yr1'))
+    out.append(ss.vaccinate(bednet, at='2005-01-01', coverage=0.5, where=node != 'Peri-urban', name='bednet_2005'))
+    out.append(ss.treat(drug, at='2007-01-01', coverage=0.5, where=(ss.ppl.age < 20) & (node != 'Rural'), name='drug_yr7'))
+    return out
 
 
-# ------------------------------------------------------------------
-# Three-node spatial configuration
-# ------------------------------------------------------------------
-
-THREE_NODES = ms.NodeGrid(
-    populations = POPULATIONS,
-    labels      = ['Urban', 'Peri-urban', 'Rural'],
-    eir         = node_eirs,
-    emergence   = node_emergences,
-    f_indoor    = f_indoors
-)
+THREE_NODES = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], pop=POPULATIONS)
+NODE_PARS   = dict(eir=node_eirs, emergence=node_emergences, f_indoor=f_indoors)
 
 _SHAPE_CODES = {
     tuple(ms.URBAN_EIR):      'u',
@@ -255,87 +93,74 @@ def make_run_prefix():
     os.makedirs('malaria_results', exist_ok=True)
     return f'malaria_results/pop-{pop_tag}_eir-{eir_tag}_seasonal-{shape_tag}_intven-{intven_tag}_'
 
+# ------------------------------------------------------------------
+# Scenarios
+# ------------------------------------------------------------------
+
 SCENARIOS = [
-    dict(label='human-SIS + mosquito-EIR-only',  human='sis',  mosquito='eir_only', nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-SEIS + mosquito-EIR-only', human='seis', mosquito='eir_only', nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-ODE + mosquito-EIR-only',  human='ode',  mosquito='eir_only', nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-SIS + mosquito-ODE',       human='sis',  mosquito='ode',      nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-SEIS + mosquito-ODE',      human='seis', mosquito='ode',      nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-ODE + mosquito-ODE',       human='ode',  mosquito='ode',      nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-SIS + mosquito-agents',    human='sis',  mosquito='agents',   nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-SEIS + mosquito-agents',   human='seis', mosquito='agents',   nodes=THREE_NODES, build_campaign=build_campaign),
-    dict(label='human-ODE + mosquito-agents',    human='ode',  mosquito='agents',   nodes=THREE_NODES, build_campaign=build_campaign),
+    dict(label='human-SIS + mosquito-EIR-only',      human='sis',  mosquito='eir_only'),
+    dict(label='human-SEIS + mosquito-EIR-only',     human='seis', mosquito='eir_only'),
+    dict(label='human-SIS (ODE) + mosquito-EIR-only', human='sis',  mosquito='eir_only', solver='ode'),
+    dict(label='human-SIS + mosquito-ODE',           human='sis',  mosquito='ode'),
+    dict(label='human-SEIS + mosquito-ODE',          human='seis', mosquito='ode'),
+    dict(label='human-SIS (ODE) + mosquito-ODE',     human='sis',  mosquito='ode',      solver='ode'),
+    dict(label='human-SIS + mosquito-agents',        human='sis',  mosquito='agents'),
+    dict(label='human-SEIS + mosquito-agents',       human='seis', mosquito='agents'),
 ]
 
 
-# ------------------------------------------------------------------
-# Build and run
-# ------------------------------------------------------------------
+def make_sim(scen):
+    scen = dict(scen)
+    solver = scen.pop('solver', 'abm')
+    return ms.Sim(
+        nodes         = THREE_NODES,
+        age_data      = AGE_DATA,
+        age_bin_edges = AGE_BIN_EDGES,
+        start         = START,
+        stop          = STOP,
+        dt            = ss.days(1),
+        rand_seed     = 0,
+        demographics  = ms.make_steady_state_demographics(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS),
+        common_pars   = COMMON_PARS,
+        solver        = solver,
+        interventions = campaign,
+        **NODE_PARS,
+        **scen,
+    )
 
-def run_malaria(do_monitor=True, do_pop_plot=False, do_plot=True, show_plots=False, do_save=True,
-                do_compartments=False, do_mosquito_compartments=False, do_mosquito_by_node=True):
+
+def run_malaria(do_monitor=True, do_pop_plot=False, do_plot=True, show_plots=False, do_save=True, do_mosquito_by_node=True):
     """Run all scenarios and optionally plot results.
 
     Args:
         do_monitor (bool): whether to run the performance monitor (requires running serially)
-        do_pop_plot (bool): plot the population plot per age bin
-        do_plot (bool): Plot results
-        show_plots (bool): Whether to display plots interactively (only applies if do_plot=True)
-        do_save (bool): If do_plot=True, also save figures
-        do_compartments (bool): plot the human S/E/I compartment fractions (default off)
-        do_mosquito_compartments (bool): plot mosquito SEI compartments (default off)
+        do_pop_plot (bool): plot the population per age bin
+        do_plot (bool): plot results
+        show_plots (bool): whether to display plots interactively (only applies if do_plot=True)
+        do_save (bool): if do_plot=True, also save figures
         do_mosquito_by_node (bool): plot per-node mosquito counts (default on)
     """
-
-    def _make_sim(scen):
-        return ms.Sim(
-            age_data      = AGE_DATA,
-            age_bin_edges = AGE_BIN_EDGES,
-            start         = START,
-            stop          = STOP,
-            dt            = ss.days(1),
-            label         = label,
-            rand_seed     = 0,
-            demographics  = DEMOGRAPHICS,
-            analyzers     = ms.ResultsAnalyzer(),
-            common_pars   = COMMON_PARS,
-            **scen,
-        )
-
     if do_monitor:
-        # Build, run, and release each sim one at a time so that the heavy
-        # agent arrays from one run are freed before the next sim is
-        # constructed, keeping each scenario's peak RSS independent.
         monitor = ms.PerformanceMonitor()
         sims = []
         for scen in SCENARIOS:
-            scen  = scen.copy()
-            label = scen.pop('label')
-            print(f'Running: {label}')
+            print(f'Running: {scen["label"]}')
             monitor.start()
-            sim = _make_sim(scen)
+            sim = make_sim(scen)
             sim.run()
             monitor.stop()
-            _release_sim(sim)
             monitor.record(sim)
             sims.append(sim)
-        msim = ms.MalariaMultiSim(sims, monitor=monitor)
-
-    else:
-        # Build all sims upfront and run in parallel.
-        sims = [_make_sim(s) for s in SCENARIOS]
         msim = ms.MalariaMultiSim(sims)
+    else:
+        msim = ms.MalariaMultiSim([make_sim(s) for s in SCENARIOS])
         msim.run()
-    
-    # ----------------------------------------------------------
-    # Optionally plot results
-    # ----------------------------------------------------------
-    if do_plot:
-        msim.plot_all(do_pop_plot=do_pop_plot, show_plots=show_plots, do_save=do_save,
-                      prefix=make_run_prefix(), do_compartments=do_compartments,
-                      do_mosquito_compartments=do_mosquito_compartments,
-                      do_mosquito_by_node=do_mosquito_by_node)
 
+    if do_plot:
+        prefix = make_run_prefix()
+        msim.plot_all(do_pop_plot=do_pop_plot, show_plots=show_plots, do_save=do_save, prefix=prefix, do_mosquito_by_node=do_mosquito_by_node)
+        if do_monitor:
+            monitor.plot(out_prefix=prefix + 'perf', show_plots=show_plots, do_save=do_save)
     return msim
 
 

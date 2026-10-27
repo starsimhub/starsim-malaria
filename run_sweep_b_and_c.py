@@ -48,12 +48,7 @@ EQUIL_LAST = 5      # years at end used for equilibrium estimate
 RAND_SEED  = 0
 
 # Urban node — high transmission, matches row 0 of THREE_NODES in run_malariasim.py
-URBAN_NODE = ms.NodeGrid(
-    populations = [N_AGENTS],
-    eir         = [ms.URBAN_EIR],
-    emergence   = [ms.URBAN_EMERGENCE],
-    f_indoor    = [ms.URBAN_F_INDOOR],
-)
+URBAN_NODE = dict(nodes=[N_AGENTS], eir=ms.URBAN_EIR, emergence=ms.URBAN_EMERGENCE, f_indoor=ms.URBAN_F_INDOOR)
 
 # ------------------------------------------------------------------
 # Build and run all sims
@@ -68,16 +63,15 @@ def run_sweep():
     for b in B_VALUES:
         for c in C_VALUES:
             sim = ms.Sim(
-                human        = 'ode',
+                human        = 'sis',
                 mosquito     = 'ode',
+                solver       = 'ode',
                 start        = 2000,
                 stop         = 2000 + N_YEARS,
                 dt           = ss.days(1),
-                nodes        = URBAN_NODE,
-                human_pars   = dict(
-                    prob_human_infected_on_bite    = float(b),
-                    prob_mosquito_infected_on_bite = float(c),
-                ),
+                prob_human_infected_on_bite    = float(b),
+                prob_mosquito_infected_on_bite = float(c),
+                **URBAN_NODE,
                 rand_seed    = RAND_SEED,
                 label        = f'b={b:.2f} c={c:.2f}',
                 verbose      = 0,
@@ -111,10 +105,7 @@ def extract_prevalence(msim):
         cutoff  = timevec[-1] - EQUIL_LAST
         mask    = timevec >= cutoff
 
-        disease_res = sim.results[type(sim.diseases[0]).__name__.lower()]
-        n_inf = disease_res.n_infected.values[mask]
-        n_ali = res.n_alive.values[mask]
-        prev[ib, ic] = float(np.mean(n_inf / np.maximum(n_ali, 1) * 100))
+        prev[ib, ic] = float(np.mean(res.malaria.prevalence[mask] * 100))
 
     return prev
 

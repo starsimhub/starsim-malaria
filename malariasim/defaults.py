@@ -19,13 +19,13 @@ Named constants for the three nodes used in ``run_malariasim.py``:
 Helper functions
 ----------------
 ``make_steady_state_demographics()``
-    Returns a fresh ``[ss.Births, ss.Deaths]`` pair calibrated so that births
+    Returns a fresh ``[ss.birth, ss.death]`` pair calibrated so that births
     exactly balance deaths at the initial age distribution.  Must be called
     fresh for each simulation (modules cannot be shared).
 
 ``make_age_data()``
     Returns a per-year age-distribution dataframe whose smooth density is
-    consistent with the mortality rates passed to ``ss.Deaths``,
+    consistent with the mortality rates passed to ``ss.death``,
     so agent initialisation and mortality are in demographic equilibrium.
 """
 
@@ -37,6 +37,10 @@ import starsim as ss
 
 from .demographics import compute_mortality_schedule
 
+__all__ = ['CommonParams', 'DEFAULT_EMERGENCE', 'AGE_BIN_EDGES', 'AGE_BIN_FRACTIONS',
+           'URBAN_EIR', 'PERI_URBAN_EIR', 'RURAL_EIR', 'URBAN_EMERGENCE', 'PERI_URBAN_EMERGENCE', 'RURAL_EMERGENCE',
+           'URBAN_F_INDOOR', 'PERI_URBAN_F_INDOOR', 'RURAL_F_INDOOR', 'make_steady_state_demographics', 'make_age_data']
+
 
 # ------------------------------------------------------------------
 # Shared biological parameters
@@ -45,40 +49,52 @@ from .demographics import compute_mortality_schedule
 @dataclass
 class CommonParams:
     """
-    Canonical biological parameters shared across all MalariaHuman model variants.
+    Canonical biological parameters, shared by every combination of human and mosquito models
 
-    Each human disease module has a ``pars_from(cp)`` classmethod that translates
-    these values into the model-specific parameter dict (e.g. converting
-    ``infection_duration_mean_days`` into ``ss.lognorm_ex`` for ABM models or ``ss.days``
-    for the ODE model).
+    Give it to ``ms.Sim(common_pars=...)``, or its ``pars()`` to ``ms.Malaria(**cp.pars())``.
 
     Parameters
     ----------
     prob_human_infected_on_bite : float
-        Probability of human infection per infectious mosquito bite
-        (Ross-Macdonald *b*). Default: 1.0.
+        Probability of human infection per infectious mosquito bite (Ross-Macdonald *b*).
     prob_mosquito_infected_on_bite : float
-        Probability of mosquito infection per bite on an infectious human
-        (Ross-Macdonald *c*). Default: 1.0.
+        Probability of mosquito infection per bite on an infectious human (Ross-Macdonald *c*).
     infection_duration_mean_days : float
-        Arithmetic mean of the infectious period in days. Default: 200.
+        Arithmetic mean of the infectious period in days.
     infection_duration_std_days : float
-        Arithmetic standard deviation of the infectious period in days.
-        Used by ABM models to parameterize a log-normal duration distribution.
-        Ignored by ODE models which use the mean only. Default: 200.
+        Arithmetic standard deviation of the infectious period in days (log-normal; an ODE takes it as exponential).
+    bites_per_female_per_day : float
+        Mosquito biting rate (*a*).
+    mosquito_life_expectancy_days : float
+        Mean adult female lifespan (1/mu).
+    mosquito_eip_days : float
+        Extrinsic incubation period (1/sigma).
     """
     prob_human_infected_on_bite:       float = 0.4     # Ross-Macdonald *b*
     prob_mosquito_infected_on_bite:    float = 0.3     # Ross-Macdonald *c*
     infection_duration_mean_days:      float = 200.0   # arithmetic mean of the infectious period
-    infection_duration_std_days:       float = 200.0   # arithmetic std dev (log-normal for ABM; ignored by ODE)
+    infection_duration_std_days:       float = 200.0   # arithmetic std dev
     bites_per_female_per_day:          float = 0.03    # mosquito biting rate (a)
-    mosquito_life_expectancy_days:     float = 10.0    # mean adult female lifespan (1/μ)
-    mosquito_eip_days:                 float = 12.0    # extrinsic incubation period (1/σ)
+    mosquito_life_expectancy_days:     float = 10.0    # mean adult female lifespan (1/mu)
+    mosquito_eip_days:                 float = 12.0    # extrinsic incubation period (1/sigma)
+
+    def pars(self):
+        """ The parameters of ``ms.Malaria`` """
+        return dict(
+            prob_human_infected_on_bite    = self.prob_human_infected_on_bite,
+            prob_mosquito_infected_on_bite = self.prob_mosquito_infected_on_bite,
+            infection_duration             = ss.lognorm_ex(mean=ss.days(self.infection_duration_mean_days), std=ss.days(self.infection_duration_std_days)),
+            bites_per_female_per_day       = ss.perday(self.bites_per_female_per_day),
+            life_expectancy                = ss.days(self.mosquito_life_expectancy_days),
+            eip_days                       = ss.days(self.mosquito_eip_days),
+        )
 
 
-# ------------------------------------------------------------------
-# Age structure
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Mosquito emergence by month (new adult females per person per day), by default
+# ---------------------------------------------------------------------------
+DEFAULT_EMERGENCE = [0.005, 0.005, 0.01, 0.02, 0.03, 0.04, 0.04, 0.03, 0.02, 0.01, 0.005, 0.005]
+
 
 AGE_BIN_EDGES = [
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
@@ -95,7 +111,7 @@ AGE_BIN_FRACTIONS = [
 # Canonical 3-node transmission parameters
 # ------------------------------------------------------------------
 
-# Monthly EIR (bites / person / month) for each node
+# Monthly EIR profile for each node: the annual rate (bites / person / year) at the start of each month, as ms.Malaria(eir=...) reads it, or a seasonal shape for ms.eir_to_params(seasonal_profile=...) (malariasim bug 14: was labelled per month)
 URBAN_EIR      = [1,  2,  3,  5,  8, 10,  6,  3,  2,  1,  1,  1]
 PERI_URBAN_EIR = [2,  2,  5,  6,  8, 10, 12,  8,  5,  3,  2,  2]
 RURAL_EIR      = [5,  5,  5,  8, 10, 14, 18, 20, 14,  8,  6,  5]
@@ -119,33 +135,28 @@ RURAL_F_INDOOR      = 0.55
 
 def make_steady_state_demographics(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS):
     """
-    Return a fresh ``[ss.Births, ss.Deaths]`` demographics list calibrated for
+    Return a fresh ``[ss.birth, ss.death]`` demographics list calibrated for
     a stable, representative population.
 
-    The birth rate is derived from the age-specific mortality schedule so
-    that births exactly balance deaths at the initial age distribution.
-    This is the standard approach for malaria modelling, where simulations
-    typically use a representative constant population rather than actual
-    census birth/death data.
+    Deaths are by age group (``edges``), at the mean of the rates by single
+    year of age that hold the pyramid of ``make_age_data()``, and the birth
+    rate balances them, so the population neither grows nor shrinks. Being by
+    the age groups, they also run as an ODE stratified by them
+    (``ms.Sim(age_bin_edges=edges, solver='ode')``). This is the standard approach for malaria
+    modelling, where simulations typically use a representative constant
+    population rather than actual census birth/death data. Both are declared,
+    so they run as agents or as an ODE.
 
-    A new list must be created for each simulation — modules cannot be
-    shared across ``ss.Sim`` instances.
-
-    Returns
-    -------
-    list
-        ``[ss.Births, ss.Deaths]`` ready to pass as ``demographics=`` to
-        ``ms.Sim``.
+    A new list must be created for each simulation, since modules cannot be
+    shared across sims.
     """
-    mu, _, birth_rate, max_age = compute_mortality_schedule(edges, fractions)
-    births = ss.Births(birth_rate=ss.peryear(birth_rate * 1000))
-    df = pd.DataFrame({
-        'Time':        2000,
-        'AgeGrpStart': np.arange(max_age),
-        'mx':          mu,
-    })
-    metadata = {'data_cols': dict(year='Time', age='AgeGrpStart', value='mx')}
-    return [births, ss.Deaths(death_rate=df, rate_units=1, metadata=metadata)]
+    mu, n, _, max_age = compute_mortality_schedule(edges, fractions)
+    birth_rate = float(np.dot(mu, n)/n.sum()) # Deaths per person per year, at the pyramid
+    years = np.arange(max_age)
+    group = np.clip(np.searchsorted(edges, years, side='right') - 1, 0, len(edges) - 2)
+    mu_group = [np.average(mu[group == g], weights=n[group == g]) for g in range(len(edges) - 1)] # The mean hazard in each age group, so that it also runs as an ODE stratified by these groups
+    death_rate = ss.by(age={float(e):ss.peryear(m) for e,m in zip(edges[:-1], mu_group)})
+    return [ss.birth(rate=ss.peryear(birth_rate)), ss.death(rate=death_rate)]
 
 
 def make_age_data(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS):
@@ -159,33 +170,8 @@ def make_age_data(edges=AGE_BIN_EDGES, fractions=AGE_BIN_FRACTIONS):
     Returns
     -------
     pandas.DataFrame
-        Columns: ``age`` (int, 0–99) and ``value`` (float, relative weight).
+        Columns: ``age`` (int, 0-99) and ``value`` (float, relative weight).
         Suitable for ``ss.People(age_data=...)``.
     """
     _, n, _, max_age = compute_mortality_schedule(edges, fractions)
     return pd.DataFrame({'age': np.arange(max_age, dtype=int), 'value': n})
-
-
-def make_mortality_dataframe():
-    """
-    Return a ``(dataframe, birth_rate)`` pair suitable for ``ss.Deaths``.
-
-    The dataframe has columns ``Time``, ``AgeGrpStart``, ``mx`` — one row
-    per integer age 0 to max_age-1.  Rates are per-year (use ``rate_units=1``).
-
-    Returns
-    -------
-    df : pandas.DataFrame
-        Age-specific mortality rates for ``ss.Deaths(death_rate=df, rate_units=1)``.
-    birth_rate : float
-        Calibrated births per person per year.
-    """
-    mu, _, birth_rate, max_age = compute_mortality_schedule(
-        AGE_BIN_EDGES, AGE_BIN_FRACTIONS
-    )
-    df = pd.DataFrame({
-        'Time':        2000,
-        'AgeGrpStart': np.arange(max_age),
-        'mx':          mu,
-    })
-    return df, birth_rate

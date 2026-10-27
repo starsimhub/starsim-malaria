@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 import sciris as sc
 import starsim as ss
 import malariasim as ms
-from malariasim.results import _plain_counts
 
 # ------------------------------------------------------------------
 # Configuration
@@ -45,7 +44,6 @@ COLOR = 'steelblue'
 
 def run_stability(n_seeds=N_SEEDS, n_years=N_YEARS, n_agents=N_AGENTS):
     """Run N_SEEDS sims and return a MalariaMultiSim."""
-    nodes = ms.NodeGrid(populations=[n_agents])
     sims  = []
     for seed in range(n_seeds):
         sim = ms.Sim(
@@ -56,9 +54,8 @@ def run_stability(n_seeds=N_SEEDS, n_years=N_YEARS, n_agents=N_AGENTS):
             start         = START,
             stop          = START + n_years,
             dt            = ss.days(1),
-            nodes         = nodes,
+            nodes         = [n_agents],
             demographics  = ms.make_steady_state_demographics(),
-            analyzers     = ms.ResultsAnalyzer(),
             rand_seed     = seed,
             label         = f'seed {seed}',
             verbose       = 0,
@@ -74,6 +71,11 @@ def run_stability(n_seeds=N_SEEDS, n_years=N_YEARS, n_agents=N_AGENTS):
 # ------------------------------------------------------------------
 # Plotting helpers
 # ------------------------------------------------------------------
+
+def _plain_counts(ax):
+    """ Plain numbers (not scientific notation) on the y axis """
+    ax.ticklabel_format(axis='y', style='plain', useOffset=False)
+
 
 def _draw_runs(ax, timevec, matrix):
     """Draw individual seed lines, ±1 std band, and mean."""
@@ -105,7 +107,7 @@ def _finish_panel(ax, timevec, init_val, title=None, fontsize=8):
 
 def plot_total_population(msim, show_plot=True, do_save=True):
     timevec = msim.sims[0].results.timevec.years
-    matrix  = np.array([s.results.n_alive.values for s in msim.sims])
+    matrix  = np.array([s.results.alive.values for s in msim.sims])
     n_seeds = len(msim.sims)
     n_years = int(round(timevec[-1] - timevec[0]))
 
@@ -119,7 +121,7 @@ def plot_total_population(msim, show_plot=True, do_save=True):
         f'{n_seeds} seeds × {n_years} years  |  {N_AGENTS:,} agents',
         fontsize=11,
     )
-    ax.set_ylabel('Population (n_alive)', fontsize=10)
+    ax.set_ylabel('Population (alive)', fontsize=10)
     fig.tight_layout()
 
     if do_save:
@@ -137,7 +139,8 @@ def plot_total_population(msim, show_plot=True, do_save=True):
 
 def plot_age_bin_population(msim, show_plot=True, do_save=True):
     timevec    = msim.sims[0].results.timevec.years
-    bin_labels = list(msim.sims[0].analyzers[0].hist.keys())
+    by_age     = [s.results.malaria.S.by('age') + s.results.malaria.I.by('age') for s in msim.sims] # People in each age group
+    bin_labels = list(msim.sims[0].results.malaria.S.by('age').columns)
     n_seeds    = len(msim.sims)
     n_years    = int(round(timevec[-1] - timevec[0]))
 
@@ -153,7 +156,7 @@ def plot_age_bin_population(msim, show_plot=True, do_save=True):
     )
 
     for i, (ax, lbl) in enumerate(zip(axes.flat, bin_labels)):
-        mat      = np.array([s.analyzers[0].hist[lbl] for s in msim.sims])
+        mat      = np.array([ages[:, i] for ages in by_age])
         init_val = mat[:, 0].mean()
         _draw_runs(ax, timevec, mat)
         _finish_panel(ax, timevec, init_val, title=lbl)

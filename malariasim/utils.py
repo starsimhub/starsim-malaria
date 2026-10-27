@@ -2,6 +2,8 @@
 
 import numpy as np
 
+__all__ = ['eir_to_params']
+
 from .defaults import CommonParams
 
 
@@ -12,12 +14,12 @@ def eir_to_params(
     n_months         = 12,
 ):
     """
-    Convert a target annual EIR into the NodeGrid parameters needed by each
-    mosquito model type.
+    Convert a target annual EIR into the parameters needed by each mosquito
+    model type: the EIR itself, and the mosquito emergence that gives it.
 
     Returns a tuple ``(eir_profile, emergence_profile)`` where both are lists
     of length *n_months* with the same value repeated each month (constant
-    transmission).  Pass both to ``ms.NodeGrid(eir=..., emergence=...)``.
+    transmission).  Pass them to ``ms.Malaria(eir=..., emergence=...)``.
 
     The **eir_only** mosquito model reads ``eir`` directly.
 
@@ -68,7 +70,7 @@ def eir_to_params(
     ::
 
         eir, emergence = ms.eir_to_params(target_annual_eir=10)
-        nodes = ms.NodeGrid(populations=[1000], eir=[eir], emergence=[emergence])
+        sim = ms.Sim(mosquito='ode', emergence=emergence)
     """
     if common_pars is None:
         common_pars = CommonParams()
@@ -100,29 +102,3 @@ def eir_to_params(
         emergence_profile.append(eir_per_day * mu * (a * p_inf + mu) * (sig + mu) / (a ** 2 * p_inf * sig))
 
     return monthly_eir, emergence_profile
-
-
-def interpolate_monthly(profile, t):
-    """
-    Linearly interpolate a 12-element monthly profile at fractional year *t*.
-
-    Monthly values are treated as anchors at the start of each month
-    (0/12, 1/12, …, 11/12). The January value is appended at t = 1.0 to
-    close the domain and wrap December back to January.
-
-    Parameters
-    ----------
-    profile : array-like, shape (12,)
-        One value per calendar month.
-    t : float
-        Fractional position within the year, in [0, 1).
-
-    Returns
-    -------
-    float
-        Interpolated value at time *t*.
-    """
-    x_months = np.arange(12) / 12
-    x_wrap   = np.append(x_months, 1.0)
-    y_wrap   = np.append(profile, profile[0])
-    return float(np.interp(t, x_wrap, y_wrap))
