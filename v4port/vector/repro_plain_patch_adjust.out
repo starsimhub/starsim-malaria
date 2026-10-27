@@ -1,9 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-adjust emergence by patch = None: mosquitoes y3 mean 914.8; emergence y3 33483
-adjust emergence by patch = [1.0, 0.3333333333333333]: mosquitoes y3 mean 914.8; emergence y3 33483
-adjust emergence by patch = [0.0, 0.0]: mosquitoes y3 mean 0.0; emergence y3 0
-ode, adjust emergence by patch = [0.333, 1.0]: mosquitoes y3 mean 304.9
-abm, adjust emergence by patch = [0.333, 1.0]: mosquitoes y3 mean 304.9
-ode, adjust emergence by patch = [1.0, 0.333]: mosquitoes y3 mean 914.8
-abm, adjust emergence by patch = [1.0, 0.333]: mosquitoes y3 mean 914.8

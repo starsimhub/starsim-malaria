@@ -1,8 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-total by patch, by(patch=[100,0,0])/day [ode]: Sv by patch at the end [1000.    0.    0.]
-total by patch, by(patch=[100,0,0])/day [abm]: Sv by patch at the end [1000.    0.    0.]
-fixed total 300/day, no by() [ode]: Sv by patch at the end [1200.  900.  900.]
-fixed total 300/day, no by() [abm]: Sv by patch at the end [1200.  900.  900.]
-per human, by(patch=[0.05,0.02,0.01]) x Nh [ode]: Sv by patch at the end [1000.  300.  150.]
-per human, by(patch=[0.05,0.02,0.01]) x Nh [abm]: Sv by patch at the end [1000.  300.  150.]
-expected: (1) [1000, 0, 0]; (2) 3000 shared by split = [1200, 900, 900]; (3) [0.05*2000, 0.02*1500, 0.01*1500]*10 = [1000, 300, 150]

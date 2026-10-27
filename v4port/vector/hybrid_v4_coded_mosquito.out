@@ -1,4 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-human=ode mosquito=abm (v3 class) {'prev_h_y1': '0.0348±0.0033', 'prev_h_y5_mean': '0.4194±0.0010', 'prev_h_y5_max': '0.5803±0.0015', 'prev_h_y5_min': '0.2687±0.0008', 'prev_m_y5_mean': '0.0634±0.0002', 'm_y5_mean': '3.0603±0.0010', 'm_y5_max': '6.0101±0.0027', 'argmax_m_y5': '213.6000±3.2619'} times [11.59, 14.09, 13.53, 13.68, 9.02]
-human=abm mosquito=abm (v3 class) {'prev_h_y1': '0.0426±0.0075', 'prev_h_y5_mean': '0.4177±0.0022', 'prev_h_y5_max': '0.5775±0.0058', 'prev_h_y5_min': '0.2675±0.0010', 'prev_m_y5_mean': '0.0631±0.0002', 'm_y5_mean': '3.0600±0.0010', 'm_y5_max': '6.0122±0.0016', 'argmax_m_y5': '213.0000±3.3466'} times [15.54, 15.13, 14.92, 13.77, 13.2]

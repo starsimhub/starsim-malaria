@@ -1,7 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-PASS test_node_population_assignment
-PASS test_no_cross_node_transmission_eir_only
-PASS test_ode_population_stable
-PASS test_ode_age_distribution_stable
-PASS test_ode_multinode_human
-FAIL test_newborns_keep_node_shares: modules: node shares after 10 years [0.555 0.226 0.218]

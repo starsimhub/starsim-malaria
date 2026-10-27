@@ -1,8 +1,0 @@
-{
-  "hybrid_ode": 0.04252314567565918,
-  "hybrid_abm": 3.837919235229492,
-  "hybrid_abm_coded_mosq": 13.301452875137329,
-  "ms_declared_ode": 0.030601024627685547,
-  "ms_declared_abm": 1.4728868007659912,
-  "ms_coded_mosq_agents": 0.7070105075836182
-}

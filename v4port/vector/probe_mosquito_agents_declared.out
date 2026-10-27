@@ -1,7 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-solver: abm (requested)
-Initializing sim with 1000 agents
-n_alive (agents) at start, end: 1000.0 553.0
-Sh, Ih, Sv, Ev, Iv at end: [415, 85, 46, 6, 1]
-mean age of agents in Sv at the end: None

@@ -1,3 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-{}: solver auto; people by patch at the start [2000. 1500. 1500.]; total_pop 5000.0
-{'n_agents': 1000}: solver auto; people by patch at the start [2000. 1500. 1500.]; total_pop 5000.0

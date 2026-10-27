@@ -1,4 +1,0 @@
-3.6.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/v3_f40175b4/starsim/__init__.py
-3.6.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/v3_f40175b4/starsim/__init__.py
-plain: analyzer births 290, deaths 252; module results births 290, deaths 252; attrs: [('Births', True, False), ('Deaths', False, True)]
-Fast: analyzer births 261, deaths 273; module results births 261, deaths 273; attrs: [('FastBirths', True, False), ('FastDeaths', False, True)]

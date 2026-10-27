@@ -1,6 +1,0 @@
-3.6.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/v3_f40175b4/starsim/__init__.py
-loop order of a step: ['malariasim.sim.start_step', 'malariasim.node_state.start_step', 'malariasim.mosquito_agents.start_step', 'malariasim.human_sis.start_step', 'malariasim.human_sis.step_state', 'malariasim.node_state.step', 'malariasim.mosquito_agents.step', 'malariasim.human_sis.step', 'starsim.people.step_die', 'starsim.people.update_results', 'malariasim.human_sis.update_results', 'malariasim.node_state.finish_step', 'malariasim.mosquito_agents.finish_step', 'malariasim.human_sis.finish_step', 'starsim.people.finish_step', 'malariasim.sim.finish_step']
-agents n_total first 8 steps: [0.0, 21.0, 43.0, 69.0, 89.0, 108.0, 116.0, 135.0] at day 30: 244 at day 180: 1956
-agents eir_annual first 5: [0.0, 0.0, 0.0, 0.0, 0.0]
-ode n_total first 8 steps: [250.0, 250.0, 250.0, 250.0, 250.0, 250.0, 250.0, 250.0] at day 30: 250 at day 180: 1992
-ode eir_annual first 5: [0.0, 0.0, 0.0, 0.0, 0.0]

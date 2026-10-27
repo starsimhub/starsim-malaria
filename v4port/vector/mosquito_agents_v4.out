@@ -1,4 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-coded mosquito agents + declared humans (abm) {'prev_y1_mean': '0.09298±0.013', 'prev_y3_mean': '0.462±0.003', 'prev_y3_max': '0.6215±0.0056', 'prev_y3_min': '0.3093±0.0038', 'M_y3_mean': '883±4.8', 'M_y3_max': '1962±42', 'Iv_y3_mean': '165.5±3.1', 'eir_y3_mean': '3.628±0.067', 'M_day0': '252.6±5.8', 'M_day30': '248±18'} times [0.76, 0.77, 0.77, 0.77, 0.78]
-coded mosquito agents + declared humans (ode) {'prev_y1_mean': '0.05881', 'prev_y3_mean': '0.4611', 'prev_y3_max': '0.606', 'prev_y3_min': '0.3215', 'M_y3_mean': '877.8', 'M_y3_max': '1922', 'Iv_y3_mean': '164', 'eir_y3_mean': '3.595', 'M_day0': '246', 'M_day30': '264'} time 0.39

@@ -1,4 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-{}                : 731 time points; describe: ['Sim: 1 module, 1,000 people, days 2000 to 2002', 'unit         day                                             [from the typed values in the model]']
-{'unit': 'day'}   : 3 time points; describe: ['Sim: 1 module, 1,000 people, days 2000 to 2002', 'unit         day']
-{'unit': 'year'}  : 731 time points; describe: ['Sim: 1 module, 1,000 people, years 2000 to 2002', 'unit         year']

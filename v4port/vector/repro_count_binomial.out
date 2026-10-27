@@ -1,6 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-binomial, dt=1: Sv by step [10000.0, 13806.0, 17251.0, 20367.0, 23187.0, 25739.0] end 50,000
-binomial, dt=7: Sv by step [10000.0, 30086.0, 40086.0, 45065.0, 47543.0, 48777.0] end 50,000
-binomial, dt=21: Sv by step [10000.0, 35126.0, 44469.0, 47944.0, 49235.0, 49716.0] end 50,000
-binomial, dt=30: Sv by step [10000.0, 5000.0, 2500.0, 1250.0, 625.0, 312.0] end 2

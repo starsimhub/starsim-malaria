@@ -1,5 +1,0 @@
-4.0.0 /tmp/claude-1000/-home-cliffk-idm-ssv4/eec674e9-5cc2-4285-8076-3f8450d9f316/scratchpad/wt5/starsim/__init__.py
-declared : N end 5027.3 +/- 14.2 (SE); births 2585; deaths 2557; alive agents end 5027.3
-lifetable: N end 4951.3 +/- 13.6 (SE); births 2564; deaths 2613; alive agents end 4951.3
-mixed    : N end 4965.4 +/- 16.8 (SE); births 2570; deaths 2604; alive agents end 4965.4
-modules  : N end 5009.2 +/- 14.7 (SE); births 2622; deaths 2613; alive agents end 5009.2

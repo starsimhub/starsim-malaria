@@ -1,2 +1,0 @@
-1/width                 : N after 20 y 0.9829 of 1; pyramid TVD from start 0.0154; under 5 0.125 (start 0.130)
-density at edge / group : N after 20 y 0.9898 of 1; pyramid TVD from start 0.0047; under 5 0.129 (start 0.130)

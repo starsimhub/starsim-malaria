@@ -1,2 +1,0 @@
-mode plain: n_end 5009.2 +/- 14.7 (SE); births 2622.2; deaths 2613.0; births-deaths 9.2 +/- 14.7; n points 1043
-expected births over 20 y at the calibrated rate 0.02577/y and mean pop 5007: 2580
