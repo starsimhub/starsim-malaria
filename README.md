@@ -1,5 +1,7 @@
 # Starsim-NGM
 
+**WARNING: This repository is experimental and is NOT ready for use!**
+
 This repo contains four Starsim implementations of malaria models, from simple compartmental through to complex agent-based ones.
 
 ## Quick start
