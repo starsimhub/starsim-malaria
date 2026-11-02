@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "malariasim"
-version = "0.2.0"
+version = "0.2.1"
 description = "Minimal Starsim-based malaria model"
 requires-python = ">=3.12"
 license = "MIT"
@@ -18,7 +18,7 @@ dependencies = [
     "numpy",
     "pandas",
     "matplotlib",
-    "starsim",
+    "starsim<4",
 ]
 
 [project.optional-dependencies]
