@@ -154,6 +154,7 @@ class MalariaHumanSEIS(MalariaHumanBase):
         p       = self.pars
 
         # Remove from susceptible and enter exposed.
+        ss.Infection.set_prognoses(self, uids, sources) # Records new_infections; skips MalariaHumanBase, which would make them infectious
         self.susceptible[uids] = False
         self.exposed[uids]     = True
         self.ti_exposed[uids]  = ti
