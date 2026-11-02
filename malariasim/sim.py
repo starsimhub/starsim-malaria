@@ -210,9 +210,9 @@ class Sim(ss.Sim):
             for d in demos:
                 if isinstance(d, ss.Deaths):
                     try:
-                        # ss.peryear(20) → float gives 20.0 (per 1 000 per year)
-                        death_rate = float(d.pars.death_rate) / 1000.0
-                    except Exception:
+                        # ss.peryear(20) → 20.0 (per 1 000 per year)
+                        death_rate = ss.peryear(d.pars.death_rate).value / 1000.0
+                    except TypeError: # Age-specific data has no single crude rate
                         pass
 
             # Match birth rate to death rate so the ODE population stays roughly

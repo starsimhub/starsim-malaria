@@ -202,7 +202,7 @@ class MalariaHumanODE(ss.Disease):
         # => d_a = (f_{a-1}/f_a) / w_{a-1} - 1/w_a
         # This gives low rates for young bins, rising rates for older bins —
         # a realistic mortality schedule that keeps the initial pyramid stable.
-        global_dr = float(p.death_rate_per_year)
+        global_dr = ss.peryear(p.death_rate_per_year).value
         self._death_rates = np.full(n_bins, global_dr)
         if n_bins > 1:
             for a in range(1, n_bins):
@@ -213,7 +213,7 @@ class MalariaHumanODE(ss.Disease):
             # births/yr = (d_0 + 1/w_0) × S_0 = (d_0 + 1/w_0) × f_0 × N
             self._birth_rate = (self._death_rates[0] + 1.0 / self._bin_widths[0]) * fracs[0]
         else:
-            self._birth_rate = float(p.birth_rate_per_year)
+            self._birth_rate = ss.peryear(p.birth_rate_per_year).value
 
         # --- populate People slots ---
         all_uids = self.sim.people.auids  # ss.uids([0, 1, ..., n_nodes*n_bins-1])

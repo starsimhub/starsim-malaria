@@ -1,6 +1,7 @@
 """
 Test malaria simulation configurations.
 """
+import numpy as np
 import sciris as sc
 import starsim as ss
 import matplotlib.pyplot as plt
@@ -176,9 +177,30 @@ def test_higher_eir_more_infections():
         plt.title('New infections: low vs high EIR')
 
 
+@sc.timer()
+def test_seis_new_infections():
+    """Test that SEIS records new infections, since its set_prognoses() override must do so itself."""
+    sc.heading('Testing SEIS new infections...')
+    sim = make_sim(human='seis', mosquito='eir_only')
+    sim.run()
+    cum_inf = sim.diseases[0].results.new_infections.sum()
+    assert cum_inf > 0, f'Expected SEIS to record new infections, but got {cum_inf}'
+
+
 # ------------------------------------------------------------------
 # MalariaHumanODE tests
 # ------------------------------------------------------------------
+
+@sc.timer()
+def test_ode_crude_death_rate():
+    """Test that a rate-valued ss.Deaths death rate reaches the ODE, rather than silently becoming zero."""
+    sc.heading('Testing ODE: crude death rate from ss.Deaths...')
+    sim = make_sim(human='ode', demographics=[ss.Deaths(death_rate=ss.peryear(20))])
+    sim.init()
+    disease = sim.diseases[0]
+    assert np.isclose(disease.pars.death_rate_per_year.value, 0.02), f'Expected 0.02 per year, not {disease.pars.death_rate_per_year}'
+    assert np.isclose(disease._birth_rate, 0.02), f'Expected 0.02 per year, not {disease._birth_rate}'
+
 
 AGE_BIN_EDGES     = ms.AGE_BIN_EDGES
 AGE_BIN_FRACTIONS = ms.AGE_BIN_FRACTIONS
@@ -943,7 +965,9 @@ if __name__ == '__main__':
     test_ode_multinode()
     test_ode_more_emergence_more_infections()
     test_higher_eir_more_infections()
+    test_seis_new_infections()
 
+    test_ode_crude_death_rate()
     test_ode_eir()
     test_ode_agents()
     test_ode_ode()

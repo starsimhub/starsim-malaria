@@ -449,6 +449,7 @@ class MalariaHumanBase(ss.SIS):
         dt_year = self.sim.t.dt_year
         p       = self.pars
 
+        ss.Infection.set_prognoses(self, uids, sources) # Records new_infections; skips ss.SIS, which would draw dur_inf
         self.susceptible[uids] = False
         self.infected[uids]    = True
         self.ti_infected[uids] = ti
