@@ -56,9 +56,9 @@ class MosquitoAgents(ss.Module):
         """ A parameter of the malaria disease, as a number (rates per day, durations in days) """
         val = self.mal.pars[key]
         val = getattr(val, 'raw', val)
-        if isinstance(val, ss.dur):
+        if isinstance(val, ss.Duration):
             return val.days
-        if isinstance(val, ss.TimePar):
+        if isinstance(val, ss.time.TimePar):
             return val.to('day').value
         return float(val)
 
@@ -169,8 +169,8 @@ class MosquitoAgents(ss.Module):
         self.n_people = n.sum()
         return
 
-    def update_results(self):
-        super().update_results()
+    def record_stocks(self):
+        super().record_stocks()
         res, ti = self.results, self.ti
         counts = [np.count_nonzero(self.state == k) for k in [1, 2, 3]]
         res.Sv[ti], res.Ev[ti], res.Iv[ti] = counts

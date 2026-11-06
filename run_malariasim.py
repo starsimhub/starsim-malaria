@@ -63,17 +63,17 @@ def campaign(mal):
         out.append(ss.Delivery(move=mal.S >> mal.I, at=ss.date('2000-02-06'), coverage=0.15, name='outbreak'))
     if not USE_INTERVENTIONS:
         return out
-    node = ss.ppl.patch
-    vaccine = ss.Vaccine(name='vaccine', efficacy=1.0, waning=ss.box(dur=ss.days(400)))
-    bednet = ms.Bednet(name='product_bednet', repelling=0.8, blocking=0.9, killing=0.6, usage=1.0, waning=ss.box(dur=ss.days(180)))
+    node = ss.person.patch
+    vaccine = ss.Vaccine(name='vaccine', efficacy=1.0, waning=ss.boxcar(plateau=ss.days(400)))
+    bednet = ms.Bednet(name='product_bednet', repelling=0.8, blocking=0.9, killing=0.6, usage=1.0, waning=ss.boxcar(plateau=ss.days(180)))
     drug = ss.Treatment(name='drug', cure=dict(I=1.0))
-    out.append(ss.vaccinate(vaccine, at='2003-01-01', coverage=0.5, where=(ss.ppl.age < 30) & (node != 'Urban'), name='vacc_yr1'))
+    out.append(ss.vaccinate(vaccine, at='2003-01-01', coverage=0.5, where=(ss.person.age < 30) & (node != 'Urban'), name='vacc_yr1'))
     out.append(ss.vaccinate(bednet, at='2005-01-01', coverage=0.5, where=node != 'Peri-urban', name='bednet_2005'))
-    out.append(ss.treat(drug, at='2007-01-01', coverage=0.5, where=(ss.ppl.age < 20) & (node != 'Rural'), name='drug_yr7'))
+    out.append(ss.treat(drug, at='2007-01-01', coverage=0.5, where=(ss.person.age < 20) & (node != 'Rural'), name='drug_yr7'))
     return out
 
 
-THREE_NODES = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], pop=POPULATIONS)
+THREE_NODES = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=POPULATIONS)
 NODE_PARS   = dict(eir=node_eirs, emergence=node_emergences, f_indoor=f_indoors)
 
 _SHAPE_CODES = {

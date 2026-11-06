@@ -23,7 +23,7 @@ Vaccines, outbreaks, bed nets, and drugs are implemented. A diagnostic test is S
 
 #### One campaign, all models
 
-A core design goal of malariasim is that a single campaign definition works unchanged across every combination of human and mosquito model. The malaria model is one declared Starsim disease (`ms.Malaria`), and the interventions are Starsim's own deliveries (`ss.vaccinate()`, `ss.treat()`, `ss.Delivery()`), so the same campaign runs with SIS or SEIS humans, with EIR-only, ODE, or agent-based mosquitoes, and with people as agents or as an ODE (`solver='ode'`). The one exception is protection that wanes by a function of time other than a box (`ss.box()`, full protection for a time, then an exponential decay), which only agents keep (see Section 9).
+A core design goal of malariasim is that a single campaign definition works unchanged across every combination of human and mosquito model. The malaria model is one declared Starsim disease (`ms.Malaria`), and the interventions are Starsim's own deliveries (`ss.vaccinate()`, `ss.treat()`, `ss.Delivery()`), so the same campaign runs with SIS or SEIS humans, with EIR-only, ODE, or agent-based mosquitoes, and with people as agents or as an ODE (`solver='ode'`). The one exception is protection that wanes by a function of time other than a box (`ss.boxcar()`, full protection for a time, then an exponential decay), which only agents keep (see Section 9).
 
 #### How it works
 
@@ -40,14 +40,14 @@ import malariasim as ms
 vaccine = ss.Vaccine(
     name     = 'rtsS',
     efficacy = 0.80,
-    waning   = ss.box(dur=ss.days(180), decay=ss.days(730)),
+    waning   = ss.boxcar(plateau=ss.days(180), decay=ss.days(730)),
 )
-nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], pop=[6000, 3000, 1000])
+nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=[6000, 3000, 1000])
 vacc_2005_u5 = ss.vaccinate(
     vaccine,
     at       = '2005-01-01',
     coverage = 0.80,
-    where    = (ss.ppl.age >= 0.5) & (ss.ppl.age < 5) & (ss.ppl.patch != 'Peri-urban'),
+    where    = (ss.person.age >= 0.5) & (ss.person.age < 5) & (ss.person.patch != 'Peri-urban'),
 )
 
 sim = ms.Sim(
@@ -75,7 +75,7 @@ An outbreak moves people between the disease's states, so it needs the disease. 
 def campaign(mal):
     return [
         ss.Delivery(move=mal.S >> mal.I, at='2000-02-01', coverage=0.15, name='seed'),
-        ss.vaccinate(vaccine, at='2005-01-01', coverage=0.8, where=ss.ppl.age < 5),
+        ss.vaccinate(vaccine, at='2005-01-01', coverage=0.8, where=ss.person.age < 5),
     ]
 
 sim = ms.Sim(mosquito='ode', interventions=campaign)
@@ -90,7 +90,7 @@ Each delivery has a `name`, used for its results (e.g. `sim.results.seed.deliver
 A delivery can have several rounds (`at=[...]`), or one product can be given by several deliveries. A second dose to the same person restarts their protection: the waning starts again from the new dose:
 
 ```python
-rounds = ss.vaccinate(vaccine, at=['2005-01-01', '2007-01-01'], coverage=0.8, where=(ss.ppl.age >= 0.5) & (ss.ppl.age < 5), name='rounds')
+rounds = ss.vaccinate(vaccine, at=['2005-01-01', '2007-01-01'], coverage=0.8, where=(ss.person.age >= 0.5) & (ss.person.age < 5), name='rounds')
 ```
 
 #### Seeding infections with an outbreak
@@ -117,9 +117,9 @@ Starsim checks each delivery when the sim is initialized: a time outside the sim
 Targeting is a condition on people, given as `where=`. If omitted, all alive individuals in all nodes are eligible. Eligibility is separate from coverage — eligibility defines the pool, coverage determines what fraction of that pool is actually dosed.
 
 ```python
-where = (ss.ppl.age >= 0.5) & (ss.ppl.age < 5)        # an age range (in years)
-where = ss.ppl.patch == 'Rural'                        # one node, by name
-where = (ss.ppl.patch != 'Urban') & (ss.ppl.age < 15)  # combined
+where = (ss.person.age >= 0.5) & (ss.person.age < 5)        # an age range (in years)
+where = ss.person.patch == 'Rural'                        # one node, by name
+where = (ss.person.patch != 'Urban') & (ss.person.age < 15)  # combined
 ```
 
 Conditions combine with `&` (and), `|` (or), and `~` (not). Age bounds follow the half-open convention when written as above: `0.5 <= age < 5` selects people aged 6 months up to but not including their 5th birthday.
@@ -130,7 +130,7 @@ For agents, each person has an exact age. For an ODE (`solver='ode'`), people ar
 
 #### Node targeting
 
-Nodes are the places of an `ss.geo.geography`, named when it is made (`ss.geo.geography(names=['Urban', 'Rural'], pop=[6000, 4000])`), and targeted by name: `where=ss.ppl.patch == 'Rural'`.
+Nodes are the places of an `ss.geo.geography`, named when it is made (`ss.geo.geography(names=['Urban', 'Rural'], populations=[6000, 4000])`), and targeted by name: `where=ss.person.patch == 'Rural'`.
 
 ## 5. Scheduling and Coverage
 
@@ -141,7 +141,7 @@ ss.vaccinate(
     vaccine,
     at       = '2005-01-01',               # or a list of dates, one per round
     coverage = 0.80,                       # fraction of eligible targets to dose
-    where    = ss.ppl.age < 5,             # optional; default = all alive
+    where    = ss.person.age < 5,             # optional; default = all alive
     name     = 'vacc_2005_u5',
 )
 ```
@@ -164,7 +164,7 @@ A vaccine is Starsim's `ss.Vaccine`. Against malaria, it reduces an individual's
 ss.Vaccine(
     name     = 'rtsS',
     efficacy = 0.80,                                          # efficacy at time of dosing, in [0, 1]
-    waning   = ss.box(dur=ss.days(180), decay=ss.days(730)),  # full for 180 days, then an exponential decay with a mean of 730 days
+    waning   = ss.boxcar(plateau=ss.days(180), decay=ss.days(730)),  # full for 180 days, then an exponential decay with a mean of 730 days
 )
 ```
 
@@ -179,7 +179,7 @@ An outbreak is `ss.Delivery(move=mal.S >> mal.I, ...)`: it moves the susceptible
 `ms.Bednet` is an insecticide-treated net with four effects, each a probability that can wane: repelling, blocking, killing, and usage (which scales the other three). Its holder is protected from indoor bites by `1 − (1 − usage × repelling)(1 − usage × blocking)`. The mosquitoes feel the nets too: in each node, the mean of the same over people blocks indoor feeding on them, and `usage × (1 − repelling) × blocking × killing` is the chance per indoor bite that a mosquito is killed. A repelled mosquito is not killed.
 
 ```python
-ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=ss.box(dur=ss.years(3))) # Every effect lasts three years
+ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=ss.boxcar(plateau=ss.years(3))) # Every effect lasts three years
 ```
 
 `waning=` is one waning for every effect, or a dict with one for each (an effect left out does not wane):
@@ -191,10 +191,10 @@ ms.Bednet(
     killing   = 0.6,
     usage     = 0.8,
     waning    = dict(
-        repelling = ss.box(dur=ss.days(0),   decay=ss.days(730)),
-        blocking  = ss.box(dur=ss.days(365), decay=ss.days(365)),
-        killing   = ss.box(dur=ss.days(180), decay=ss.days(365)),
-        usage     = ss.box(dur=ss.days(365), decay=ss.days(365)),
+        repelling = ss.boxcar(plateau=ss.days(0),   decay=ss.days(730)),
+        blocking  = ss.boxcar(plateau=ss.days(365), decay=ss.days(365)),
+        killing   = ss.boxcar(plateau=ss.days(180), decay=ss.days(365)),
+        usage     = ss.boxcar(plateau=ss.days(365), decay=ss.days(365)),
     ),
 )
 ```
@@ -206,7 +206,7 @@ It is delivered by `ss.vaccinate()`, like a vaccine. The mosquitoes read the net
 A drug that clears infection is Starsim's `ss.Treatment`, delivered by `ss.treat()`. `cure=dict(I=1.0)` clears the infectious (in the SEIS model, those still incubating are not cleared):
 
 ```python
-mda = ss.treat(ss.Treatment(cure=dict(I=1.0)), at='2007-01-01', coverage=0.5, where=ss.ppl.age < 20)
+mda = ss.treat(ss.Treatment(cure=dict(I=1.0)), at='2007-01-01', coverage=0.5, where=ss.person.age < 20)
 ```
 
 Clearance is immediate. A treatment has the outcomes `cured`, `failed`, and `unneeded` (not infected), which are results of its delivery.
@@ -222,7 +222,7 @@ Waning describes how a product's biological effect changes over time after deliv
 
 - `None` (the default): permanent
 - a duration, e.g. `ss.days(730)`: each person loses all their protection at a random time, with that mean
-- `ss.box(dur=..., decay=...)`: full efficacy for `dur`, then (with `decay=`) an exponential decay with that mean, or (without it) none
+- `ss.boxcar(plateau=..., decay=...)`: full efficacy for `dur`, then (with `decay=`) an exponential decay with that mean, or (without it) none
 - any function of the time since delivery `t` (a duration, so `t.years` and `t < ss.days(180)` read the same in any sim), giving the share of the protection left, e.g. `lambda t: np.clip(1 - t.years/5, 0, 1)`
 
 The box has two phases:
@@ -234,12 +234,12 @@ The box has two phases:
 
 | Profile | `waning=` | Effect |
 |---|---|---|
-| Immediate decay | `ss.box(dur=ss.days(0), decay=ss.days(730))` | Decays from delivery time, with a mean of 2 years (as agents) |
-| Box then decay | `ss.box(dur=ss.days(180), decay=ss.days(730))` | Flat for 6 months, then decays |
-| Step function | `ss.box(dur=ss.days(180))` | Full efficacy for 6 months, then drops to zero |
+| Immediate decay | `ss.boxcar(plateau=ss.days(0), decay=ss.days(730))` | Decays from delivery time, with a mean of 2 years (as agents) |
+| Box then decay | `ss.boxcar(plateau=ss.days(180), decay=ss.days(730))` | Flat for 6 months, then decays |
+| Step function | `ss.boxcar(plateau=ss.days(180))` | Full efficacy for 6 months, then drops to zero |
 | Permanent | `None` (the default) | Efficacy never decays |
 
-A box (`ss.box(...)`) is also the share of the protection left: `ss.box(dur=ss.days(180), decay=ss.days(730))(ss.days(365))` is `exp(−185/730)`.
+A box (`ss.boxcar(...)`) is also the share of the protection left: `ss.boxcar(plateau=ss.days(180), decay=ss.days(730))(ss.days(365))` is `exp(−185/730)`.
 
 #### Example: RTS,S-like vaccine profile
 
@@ -247,7 +247,7 @@ A box (`ss.box(...)`) is also the share of the protection left: `ss.box(dur=ss.d
 ss.Vaccine(
     name     = 'rtsS',
     efficacy = 0.80,
-    waning   = ss.box(dur=ss.days(180), decay=ss.days(730)),
+    waning   = ss.boxcar(plateau=ss.days(180), decay=ss.days(730)),
 )
 ```
 
@@ -266,7 +266,7 @@ def campaign(mal, efficacy=0.80, coverage=0.80):
     vaccine = ss.Vaccine(
         name     = 'rtsS',
         efficacy = efficacy,
-        waning   = ss.box(dur=ss.days(180), decay=ss.days(730)),
+        waning   = ss.boxcar(plateau=ss.days(180), decay=ss.days(730)),
     )
     return [
         ss.Delivery(move=mal.S >> mal.I, at='2000-02-01', coverage=0.15, name='seed'),
@@ -322,7 +322,7 @@ The same campaign works unchanged with people as agents (`solver='abm'`, the def
 | Age filtering | Exact age | Age groups — bounds on group edges |
 | Outbreak | Infects individual susceptible people | Moves `coverage × S` from susceptible to infectious |
 | Drug | Cures individual infectious people | Moves `coverage × I` from infectious to susceptible |
-| Waning by `ss.box()` | Per-person efficacy from the time since their dose | Levels of holding the product: the box as 10 stages (so its end is spread over about `dur/√10`), then a decaying level |
+| Waning by `ss.boxcar()` | Per-person efficacy from the time since their dose | Levels of holding the product: the box as 10 stages (so its end is spread over about `dur/√10`), then a decaying level |
 | Waning by another function of time | Per-person efficacy from the time since their dose | Not available: refused before the run |
 
 #### Second doses and re-vaccination

@@ -2,7 +2,7 @@
 Intervention tests: outbreaks, drugs, vaccines, and how their protection wanes
 
 The interventions are Starsim's deliveries: an outbreak is `ss.Delivery(move=mal.S >> mal.I)`, a drug
-`ss.treat(ss.Treatment(cure=dict(I=1.0)))`, and a vaccine `ss.vaccinate(ss.Vaccine(...))`, waning as a box then a decay (`ss.box()`).
+`ss.treat(ss.Treatment(cure=dict(I=1.0)))`, and a vaccine `ss.vaccinate(ss.Vaccine(...))`, waning as a box then a decay (`ss.boxcar()`).
 """
 
 import numpy as np
@@ -74,8 +74,8 @@ def test_drug_treats_infectious_only():
 @sc.timer()
 def test_drug_node_targeted():
     """ A drug in node a only clears infections there, not in node b """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
-    sim = make_sim(lambda mal: [seed()(mal), drug(where=ss.ppl.patch == 'a')], nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
+    sim = make_sim(lambda mal: [seed()(mal), drug(where=ss.person.patch == 'a')], nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
     I = sim.results.malaria.I.by('patch')
     assert I[183, 0] < 0.1*I[181, 0], f'Expected node a cleared: {I[181, 0]:.0f} to {I[183, 0]:.0f}'
     assert I[183, 1] > 0.8*I[181, 1], f'Expected node b untouched: {I[181, 1]:.0f} to {I[183, 1]:.0f}'
@@ -85,7 +85,7 @@ def test_drug_node_targeted():
 
 def rtss():
     """ An RTS,S-like vaccine: 80% for 180 days, then declining with a mean of 730 days """
-    return ss.Vaccine(efficacy=0.8, waning=ss.box(dur=ss.days(180), decay=ss.days(730)))
+    return ss.Vaccine(efficacy=0.8, waning=ss.boxcar(plateau=ss.days(180), decay=ss.days(730)))
 
 
 @sc.timer()
@@ -100,7 +100,7 @@ def test_vaccine_reduces_infections_vs_baseline():
 @sc.timer()
 def test_vaccine_second_round_redoses():
     """ A second round reaches those vaccinated in the first, and restarts their protection (malariasim's rule, one dose at a time) """
-    vx = ss.Vaccine(efficacy=1.0, waning=ss.box(dur=ss.days(30)))
+    vx = ss.Vaccine(efficacy=1.0, waning=ss.boxcar(plateau=ss.days(30)))
     rounds = ss.vaccinate(vx, at=['2000-02-01', '2000-06-01'], coverage=0.8, name='rounds')
     sim = make_sim(lambda mal: [seed()(mal), rounds])
     delivered = np.asarray(sim.results.rounds.delivered)

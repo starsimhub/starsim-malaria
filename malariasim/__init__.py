@@ -24,11 +24,11 @@ Mosquitoes as counts, run as an ODE::
 Three nodes, with a vaccine for children under 5 in two of them::
 
     import starsim as ss
-    nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], pop=[6000, 3000, 1000])
-    vaccine = ss.Vaccine(efficacy=0.8, waning=ss.box(dur=ss.days(180), decay=ss.days(730)))
+    nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=[6000, 3000, 1000])
+    vaccine = ss.Vaccine(efficacy=0.8, waning=ss.boxcar(plateau=ss.days(180), decay=ss.days(730)))
     sim = ms.Sim(nodes=nodes, mosquito='ode', init_prev=0.1, eir=[4, 6, 8],
                  interventions=ss.vaccinate(vaccine, at='2005-01-01', coverage=0.8,
-                                            where=(ss.ppl.age < 5) & (ss.ppl.patch != 'Urban')))
+                                            where=(ss.person.age < 5) & (ss.person.patch != 'Urban')))
 """
 
 from .defaults          import *

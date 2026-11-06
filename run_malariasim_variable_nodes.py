@@ -130,7 +130,7 @@ def make_node_grid(total_pop, n_nodes, peak_month=PEAK_MONTH, seed=GRID_SEED):
         eir_profiles.append((shape * eir_means[i]).tolist())
         emergence_profiles.append((shape * em_means[i]).tolist())
 
-    nodes = ss.geo.geography(names=[f'Node {i}' for i in range(n_nodes)], pop=pops.tolist()) if n_nodes > 1 else pops.tolist()
+    nodes = ss.geo.geography(names=[f'Node {i}' for i in range(n_nodes)], populations=pops.tolist()) if n_nodes > 1 else pops.tolist()
     if n_nodes == 1: # One value, or one profile, for the one node
         eir_profiles, emergence_profiles, f_indoors = eir_profiles[0], emergence_profiles[0], f_indoors[0]
     return nodes, dict(eir=eir_profiles, emergence=emergence_profiles, f_indoor=np.asarray(f_indoors).tolist())

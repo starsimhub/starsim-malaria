@@ -83,7 +83,7 @@ class CommonParams:
         return dict(
             prob_human_infected_on_bite    = self.prob_human_infected_on_bite,
             prob_mosquito_infected_on_bite = self.prob_mosquito_infected_on_bite,
-            infection_duration             = ss.lognorm_ex(mean=ss.days(self.infection_duration_mean_days), std=ss.days(self.infection_duration_std_days)),
+            infection_duration             = ss.lognormal(mean=ss.days(self.infection_duration_mean_days), std=ss.days(self.infection_duration_std_days)),
             bites_per_female_per_day       = ss.perday(self.bites_per_female_per_day),
             life_expectancy                = ss.days(self.mosquito_life_expectancy_days),
             eip_days                       = ss.days(self.mosquito_eip_days),

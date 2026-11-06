@@ -5,10 +5,10 @@ Malaria interventions as Starsim products, delivered by Starsim's deliveries
   usage), each of which can wane, which protects its holder from indoor bites and blocks and
   kills mosquitoes
 
-A vaccine is ``ss.Vaccine``, waning as a box then an exponential decay with ``ss.box()``, e.g.
-``ss.Vaccine(efficacy=0.8, waning=ss.box(dur=ss.days(180), decay=ss.days(730)))``. They are
+A vaccine is ``ss.Vaccine``, waning as a box then an exponential decay with ``ss.boxcar()``, e.g.
+``ss.Vaccine(efficacy=0.8, waning=ss.boxcar(plateau=ss.days(180), decay=ss.days(730)))``. They are
 delivered by ``ss.vaccinate()`` (or ``ss.Delivery``), with targeting by ``where=`` (e.g.
-``where=(ss.ppl.age < 5) & (ss.ppl.patch == 'Rural')``). A drug that clears infection is
+``where=(ss.person.age < 5) & (ss.person.patch == 'Rural')``). A drug that clears infection is
 ``ss.Treatment(cure=dict(I=1.0))``, delivered by ``ss.treat()``, and an outbreak (seeding) is
 ``ss.Delivery(move=mal.S >> mal.I)``.
 """
@@ -28,7 +28,7 @@ class Bednet(ss.Vaccine):
     nets: in each node, the mean of the same over people blocks indoor feeding on them, and
     `usage*(1 - repelling)*blocking*killing` is the chance per indoor bite that the mosquito is killed.
 
-    Waning by one `ss.box()` without a decay for every effect (a net that lasts for a time) runs under every solver;
+    Waning by one `ss.boxcar()` without a decay for every effect (a net that lasts for a time) runs under every solver;
     any other waning, as agents only.
 
     Args:
@@ -37,15 +37,15 @@ class Bednet(ss.Vaccine):
         killing (float): the probability that one blocked is killed (none that is repelled is)
         usage (float): the probability that the net is used, which scales the three effects
         waning (box/func/dict): how the effects wane, as a function of the time since delivery (as `ss.Vaccine(waning=...)`
-            takes it): one for every effect (e.g. `ss.box(dur=ss.years(3))`), or a dict by effect, with None (or an effect
+            takes it): one for every effect (e.g. `ss.boxcar(plateau=ss.years(3))`), or a dict by effect, with None (or an effect
             left out) for none; by default, none
         name (str): the name of the product
         kwargs (dict): passed to `ss.Vaccine`
 
     Examples:
         ```python
-        itn = ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=ss.box(dur=ss.years(3)))
-        itn = ms.Bednet(blocking=0.9, killing=0.6, waning=dict(blocking=ss.box(dur=ss.days(365), decay=ss.days(365)), killing=ss.box(dur=ss.days(180), decay=ss.days(365))))
+        itn = ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=ss.boxcar(plateau=ss.years(3)))
+        itn = ms.Bednet(blocking=0.9, killing=0.6, waning=dict(blocking=ss.boxcar(plateau=ss.days(365), decay=ss.days(365)), killing=ss.boxcar(plateau=ss.days(180), decay=ss.days(365))))
         intv = ss.vaccinate(itn, at='2005-01-01', coverage=0.5)
         ```
     """
@@ -68,7 +68,7 @@ class Bednet(ss.Vaccine):
         fns = list(self.net_waning.values())
         if all(fn is None for fn in fns):
             return None
-        if all(isinstance(fn, ss.box) and fn.decay is None and fn == fns[0] for fn in fns): # Every effect is full, then none
+        if all(isinstance(fn, ss.boxcar) and fn.decay is None and fn == fns[0] for fn in fns): # Every effect is full, then none
             return fns[0]
         return self.relative_protection
 
@@ -97,6 +97,6 @@ class Bednet(ss.Vaccine):
         The share of indoor bites blocked by the net, and the chance per indoor bite that a mosquito is killed by it, each the
         mean over the people in the same node, as quantities in the mosquitoes' rates (from its coverage, `self.coverage`)
         """
-        if not callable(self.waning) or isinstance(self.waning, ss.box): # Each holder counts the same: as much as at delivery, as long as they hold it
+        if not callable(self.waning) or isinstance(self.waning, ss.boxcar): # Each holder counts the same: as much as at delivery, as long as they hold it
             return self.protection0*self.coverage, float(self.kill(ss.days(0)))*self.coverage
         return self.coverage(self.protection), self.coverage(self.kill)

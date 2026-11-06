@@ -2,7 +2,7 @@
 Bednet (ITN) tests: protection of the holder from indoor bites, and the blocking and killing of mosquitoes
 
 The mosquitoes feel the nets through their coverage (`itn.coverage`): as counts, under every solver
-when the nets wane by one box (`ss.box()`), and as agents, from the holders in each node.
+when the nets wane by one box (`ss.boxcar()`), and as agents, from the holders in each node.
 """
 
 import numpy as np
@@ -16,7 +16,7 @@ _, EMERGENCE_10 = ms.eir_to_params(10.0, common_pars=ms.CommonParams())
 
 def bednet(repelling=0.0, blocking=1.0, killing=1.0, usage=1.0):
     """ A bednet whose effects last the year """
-    return ms.Bednet(repelling=repelling, blocking=blocking, killing=killing, usage=usage, waning=ss.box(dur=ss.days(365)))
+    return ms.Bednet(repelling=repelling, blocking=blocking, killing=killing, usage=usage, waning=ss.boxcar(plateau=ss.days(365)))
 
 
 def make_sim(net=None, at='2000-01-31', coverage=1.0, where=None, seed=True, mosquito='ode', nodes=None, **kw):
@@ -110,9 +110,9 @@ def test_bednet_usage_zero_has_no_effect():
 @sc.timer()
 def test_bednet_node_targeted():
     """ Nets in node a only: lower prevalence there than in node b """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     net = bednet(repelling=0.8, blocking=0.9, killing=0.6, usage=0.8)
-    sim = make_sim(net, where=ss.ppl.patch == 'a', nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
+    sim = make_sim(net, where=ss.person.patch == 'a', nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] < prev[1], f'Expected lower prevalence in node a, with nets: {prev}'
 
@@ -153,14 +153,14 @@ def test_bednet_no_double_count():
 
 def test_bednet_waning_by_effect():
     """ Each effect wanes by its own function; the holder's protection combines them, and wanes as one box only if every effect does """
-    blocking, usage = ss.box(dur=ss.days(100)), ss.box(dur=ss.days(200), decay=ss.days(100))
+    blocking, usage = ss.boxcar(plateau=ss.days(100)), ss.boxcar(plateau=ss.days(200), decay=ss.days(100))
     net = ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=dict(blocking=blocking, usage=usage))
     t = ss.days(np.array([0.0, 150, 300]))
     u = 0.8*usage(t)
     assert np.allclose(net.protection(t), 1 - (1 - 0.5*u)*(1 - 0.9*blocking(t)*u)), 'Expected the protection from the effects at each time'
     assert np.allclose(net.kill(t), (1 - 0.5*u)*0.9*blocking(t)*u*0.6*u), 'Expected the killing from the effects at each time'
     assert net.waning == net.relative_protection, 'Expected effects that wane differently to wane by the protection'
-    assert bednet().waning == ss.box(dur=ss.days(365)), 'Expected one box for every effect to be the waning'
+    assert bednet().waning == ss.boxcar(plateau=ss.days(365)), 'Expected one box for every effect to be the waning'
     with pytest.raises(ValueError):
         ms.Bednet(waning=dict(holes=blocking))
     with pytest.raises(ValueError):

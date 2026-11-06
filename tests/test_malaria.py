@@ -71,7 +71,7 @@ def test_ode_mosquito_results():
 
 @sc.timer()
 def test_ode_multinode():
-    nodes = ss.geo.geography(names=['Urban', 'Rural'], pop=[600, 400])
+    nodes = ss.geo.geography(names=['Urban', 'Rural'], populations=[600, 400])
     sim = make_sim(mosquito='ode', nodes=nodes, init_prev=0.01, emergence=[ms.URBAN_EMERGENCE, ms.RURAL_EMERGENCE]).run()
     res = sim.results.malaria
     assert res.I.sum() > 0, 'Expected infections in a multi-node sim'
@@ -165,7 +165,7 @@ def test_ode_higher_b_more_infections():
 
 @sc.timer()
 def test_ode_multinode_human():
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[600, 400])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[600, 400])
     sim = make_ode_sim(nodes=nodes, eir=[10, 3]).run()
     inf = sim.results.malaria.I.by('patch').sum(axis=0)
     assert (inf > 0).all(), 'Each node should have infections'
@@ -186,7 +186,7 @@ def test_agents_and_ode_agree():
 def test_node_population_assignment():
     """ People start in each node in proportion to its population """
     pops = [500, 300, 200]
-    nodes = ss.geo.geography(names=['a', 'b', 'c'], pop=pops)
+    nodes = ss.geo.geography(names=['a', 'b', 'c'], populations=pops)
     sim = make_sim(nodes=nodes)
     sim.init()
     counts = np.bincount(np.asarray(sim.people.patch[sim.people.auids], dtype=int), minlength=3)
@@ -197,7 +197,7 @@ def test_node_population_assignment():
 def test_node_population_kept_with_demography():
     """ Newborns join the nodes in proportion, so the nodes keep their shares """
     pops = [500, 300, 200]
-    nodes = ss.geo.geography(names=['a', 'b', 'c'], pop=pops)
+    nodes = ss.geo.geography(names=['a', 'b', 'c'], populations=pops)
     sim = make_sim(nodes=nodes, stop=2005, age_data=ms.make_age_data(), demographics=ms.make_steady_state_demographics()).run()
     counts = np.bincount(np.asarray(sim.people.patch[sim.people.auids], dtype=int), minlength=3)
     assert np.allclose(counts/counts.sum(), np.array(pops)/sum(pops), atol=0.05), f'Node shares drifted: {counts}'
@@ -206,7 +206,7 @@ def test_node_population_kept_with_demography():
 @sc.timer()
 def test_no_cross_node_transmission_eir_only():
     """ The EIR of one node does not reach people in another """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[500, 500])
     sim = make_sim(nodes=nodes, eir=[10, 0], stop=2000 + 90/365).run()
     inf = sim.results.malaria.infections.by('patch').sum(axis=0)
     assert inf[1] == 0, f'Cross-node EIR leak: {inf[1]} infections in node b, whose EIR is 0'
@@ -216,9 +216,9 @@ def test_no_cross_node_transmission_eir_only():
 @sc.timer()
 def test_no_cross_node_transmission_agents():
     """ Mosquitoes and transmission are node-local (mosquito agents): seeding node b leaves node a uninfected """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[500, 500])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
-                   interventions=seed(coverage=0.5, where=ss.ppl.patch == 'b')).run()
+                   interventions=seed(coverage=0.5, where=ss.person.patch == 'b')).run()
     inf = sim.results.malaria.I.by('patch').sum(axis=0)
     assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
     assert inf[1] > 0, 'Node b was not seeded'
@@ -227,9 +227,9 @@ def test_no_cross_node_transmission_agents():
 @sc.timer()
 def test_no_cross_node_transmission_ode():
     """ The same with mosquitoes as counts """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[500, 500])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[500, 500])
     sim = make_sim(mosquito='ode', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
-                   interventions=seed(coverage=0.5, where=ss.ppl.patch == 'b')).run()
+                   interventions=seed(coverage=0.5, where=ss.person.patch == 'b')).run()
     inf = sim.results.malaria.I.by('patch').sum(axis=0)
     assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
 
@@ -237,9 +237,9 @@ def test_no_cross_node_transmission_ode():
 @sc.timer()
 def test_outbreak_seeds_node_no_cross_node_spread():
     """ An outbreak in node a on day 10: nearly all of node a is infected at day 30, and none of node b """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 30/365,
-                   interventions=seed(at='2000-01-11', where=ss.ppl.patch == 'a')).run()
+                   interventions=seed(at='2000-01-11', where=ss.person.patch == 'a')).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] >= 0.95, f'Node a prevalence at day 30 was {prev[0]:.1%}, expected >= 95%'
     assert prev[1] == 0, f'Cross-node transmission: node b prevalence {prev[1]:.1%}'
@@ -248,7 +248,7 @@ def test_outbreak_seeds_node_no_cross_node_spread():
 @sc.timer()
 def test_outbreak_seeds_both_nodes():
     """ An outbreak in both nodes, with sustained transmission: both near 100% at day 730 """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002,
                    interventions=seed(at='2000-01-11')).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
@@ -264,7 +264,7 @@ def vaccinate(where=None, at='2000-04-10', coverage=1.0):
 @sc.timer()
 def test_vaccine_clears_infection_both_nodes():
     """ A permanent vaccine for everyone on day 100: no new infections, so every infection has cleared by day 730 """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
                    interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate()]).run()
     inf = infected_by_node(sim)
@@ -274,9 +274,9 @@ def test_vaccine_clears_infection_both_nodes():
 @sc.timer()
 def test_vaccine_node0_only_clears_node0_not_node1():
     """ The vaccine in node a only: node a clears, node b stays endemic """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
-                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate(where=ss.ppl.patch == 'a')]).run()
+                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate(where=ss.person.patch == 'a')]).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] == 0, f'Node a still had prevalence {prev[0]:.1%} despite a permanent vaccine'
     assert prev[1] >= 0.95, f'Node b prevalence was {prev[1]:.1%}, expected >= 95% without the vaccine'
@@ -285,10 +285,10 @@ def test_vaccine_node0_only_clears_node0_not_node1():
 @sc.timer()
 def test_vaccine_held_by_those_vaccinated():
     """ Only people in node a who were alive on day 100 hold the vaccine, and none of them is infected afterwards """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     vx = ss.Vaccine(efficacy=1.0)
     sim = make_sim(mosquito='eir_only', nodes=nodes, eir=[30, 30], stop=2002, age_data=ms.make_age_data(), demographics=ms.make_steady_state_demographics(),
-                   infection_duration=ss.constant(ss.days(30)), interventions=ss.vaccinate(vx, at='2000-04-10', coverage=1.0, where=ss.ppl.patch == 'a')).run()
+                   infection_duration=ss.constant(ss.days(30)), interventions=ss.vaccinate(vx, at='2000-04-10', coverage=1.0, where=ss.person.patch == 'a')).run()
     people = sim.people
     uids = people.auids
     holds = np.asarray(people[vx.dim][uids], dtype=bool)
@@ -303,8 +303,8 @@ def test_vaccine_held_by_those_vaccinated():
 @sc.timer()
 def test_full_protection_blocks_transmission():
     """ A vaccine of full efficacy at the start: no infections in node a, many in node b, at the same EIR """
-    nodes = ss.geo.geography(names=['a', 'b'], pop=[1000, 1000])
-    sim = make_sim(nodes=nodes, eir=[30, 30], stop=2000 + 30/365, interventions=vaccinate(where=ss.ppl.patch == 'a', at='2000-01-01')).run()
+    nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
+    sim = make_sim(nodes=nodes, eir=[30, 30], stop=2000 + 30/365, interventions=vaccinate(where=ss.person.patch == 'a', at='2000-01-01')).run()
     inf = sim.results.malaria.infections.by('patch').sum(axis=0)
     assert inf[0] == 0, f'{inf[0]} infections in node a despite full protection'
     assert inf[1] > 0, 'No infections in node b'

@@ -21,7 +21,7 @@ class Sim(ss.Sim):
         human (str): 'sis' (the default) or 'seis' (with an incubation period of about 12 days)
         mosquito (str): 'agents' (individual mosquitoes, the default), 'ode' (mosquitoes as counts), or 'eir_only' (an EIR given, no mosquitoes)
         solver (str): 'abm' (people as agents, the default) or 'ode' (people as compartments too); with mosquito agents, agents only
-        nodes (geography/list): the nodes, as an `ss.geo.geography` (e.g. `ss.geo.geography(names=['Urban', 'Rural'], pop=[6000, 4000])`), or a list of populations; by default one node of 10,000 people
+        nodes (geography/list): the nodes, as an `ss.geo.geography` (e.g. `ss.geo.geography(names=['Urban', 'Rural'], populations=[6000, 4000])`), or a list of populations; by default one node of 10,000 people
         age_data (dataframe): the ages of people at the start (columns `age` and `value`); by default uniform
         age_bin_edges (list): age groups (e.g. `ms.AGE_BIN_EDGES`), for results by age and for the ages of an ODE
         start (int/str): the start (default 2000)
@@ -38,7 +38,7 @@ class Sim(ss.Sim):
         ```python
         sim = ms.Sim(mosquito='eir_only', eir=[2, 2, 5, 15, 30, 50, 50, 30, 15, 5, 2, 2])
         sim = ms.Sim(human='seis', mosquito='ode', solver='ode', init_prev=0.1)
-        nodes = ss.geo.geography(names=['Urban', 'Rural'], pop=[6000, 4000])
+        nodes = ss.geo.geography(names=['Urban', 'Rural'], populations=[6000, 4000])
         sim = ms.Sim(nodes=nodes, mosquito='ode', emergence=[ms.URBAN_EMERGENCE, ms.RURAL_EMERGENCE], init_prev=0.1)
         ```
     """
@@ -52,10 +52,10 @@ class Sim(ss.Sim):
         if nodes is None:
             pops = [10_000]
         elif isinstance(nodes, ss.geo.geography):
-            pops = list(nodes.pop)
+            pops = list(nodes.populations)
         else:
             pops = list(nodes)
-            nodes = ss.geo.geography(names=[f'Node {i}' for i in range(len(pops))], pop=pops) if len(pops) > 1 else None
+            nodes = ss.geo.geography(names=[f'Node {i}' for i in range(len(pops))], populations=pops) if len(pops) > 1 else None
         n = int(np.sum(pops))
         if nodes is not None and len(nodes.names) == 1:
             nodes = None

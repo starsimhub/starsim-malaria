@@ -16,7 +16,7 @@ import malariasim as ms
 POPULATIONS       = [15000, 10000, 5000]
 TARGET_ANNUAL_EIR = [10, 5, 2]
 EIR_TOLERANCE     = 0.1
-NODES = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], pop=POPULATIONS)
+NODES = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=POPULATIONS)
 COMMON_PARS = ms.CommonParams(bites_per_female_per_day=0.3, prob_human_infected_on_bite=1.0, prob_mosquito_infected_on_bite=1.0)
 
 SCENARIOS = [ # Human, mosquitoes, solver

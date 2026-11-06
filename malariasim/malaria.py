@@ -40,7 +40,7 @@ def monthly(profile, unit=ss.peryear):
     if profile.shape != (12,):
         raise ValueError(f'A monthly profile has 12 values, one per month, not {profile.shape}')
     vals = list(profile) + [profile[0]] # Back to January
-    return ss.timeseries({ss.years(k/12): unit(v) for k,v in enumerate(vals)}, mode='linear', period=ss.years(1))
+    return ss.timeseries({ss.years(k/12): unit(v) for k,v in enumerate(vals)}, interpolation='linear', period=ss.years(1))
 
 
 def per_node(value, n_nodes, unit=ss.peryear):
@@ -134,7 +134,7 @@ class Malaria(ss.Disease):
     defaults = dict(
         prob_human_infected_on_bite    = ss.par(1.0, bounds=[0, 1], doc='Probability that an infectious bite infects (b)'),
         prob_mosquito_infected_on_bite = ss.par(1.0, bounds=[0, 1], doc='Probability that a bite on an infectious person infects the mosquito (c)'),
-        infection_duration             = ss.lognorm_ex(mean=ss.days(200), std=ss.days(200)),
+        infection_duration             = ss.lognormal(mean=ss.days(200), std=ss.days(200)),
         dur_exp                        = ss.normal(ss.days(12), ss.days(2)),
         default_infectiousness         = 1.0,
         heterogeneity_shape            = 0.0,
@@ -206,7 +206,7 @@ class Malaria(ss.Disease):
             init.update(Sv=self.mosquito_start)
         tr.infections = ss.outcome(tr.bite_indoor + tr.bite_outdoor, label='Infections')
         tr.prevalence = I/people
-        super().__init__(**tr, init=init, first='S', name=name)
+        super().__init__(**tr, init=init, default_state='S', name=name)
         self.define_pars(**{k:v for k,v in p.items() if k not in self.pars}) # Those the declared model does not use (e.g. the mosquitoes' as agents), for code to read
         self.human, self.mosquito, self.bednets, self.nodes = human, mosquito, bednets, nodes
         self.emergence0 = self.first_month(s['emergence'], n_nodes) if mosquito == 'ode' else None # Per person per day, at the start, in each node
@@ -217,7 +217,7 @@ class Malaria(ss.Disease):
             self.stratify(patch=nodes, kind='space')
         if weights is not None:
             n = len(weights)
-            self.stratify(biting=[f'b{k}' for k in range(n)], split=[1/n]*n, adjust={'bite_indoor':list(weights), 'bite_outdoor':list(weights)})
+            self.stratify(biting=[f'b{k}' for k in range(n)], fractions=[1/n]*n, adjust={'bite_indoor':list(weights), 'bite_outdoor':list(weights)})
         return
 
     @staticmethod
@@ -238,7 +238,7 @@ class Malaria(ss.Disease):
         n = sim.pars.total_pop or sim.pars.n_agents*(sim.pars.pop_scale or 1)
         if self.nodes is None:
             return float(np.mean(per_person))*n
-        pops = np.asarray(self.nodes.pop, dtype=float)
+        pops = np.asarray(self.nodes.populations, dtype=float)
         return ss.by(patch=list(per_person*n*pops/pops.sum()))
 
 

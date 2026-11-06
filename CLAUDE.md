@@ -90,7 +90,7 @@ sim.pars.Nh                  — human population size
 
 ### Interventions
 
-Products are Starsim products delivered by Starsim's deliveries: vaccines as `ss.Vaccine` (waning as a box then a decay with `ss.box(dur=, decay=)`), `ms.Bednet` (an `ss.Vaccine` against indoor bites with four effects, each with its own waning, whose blocking and killing the mosquitoes read from its coverage, `itn.coverage`), drugs as `ss.Treatment(cure=dict(I=1.0))`, and outbreaks as `ss.Delivery(move=mal.S >> mal.I)`. Targeting is `where=` (e.g. `ss.ppl.patch == 'Rural'`). Waning by `ss.box()` runs under every solver; by any other function of time, as agents only.
+Products are Starsim products delivered by Starsim's deliveries: vaccines as `ss.Vaccine` (waning as a box then a decay with `ss.boxcar(plateau=, decay=)`), `ms.Bednet` (an `ss.Vaccine` against indoor bites with four effects, each with its own waning, whose blocking and killing the mosquitoes read from its coverage, `itn.coverage`), drugs as `ss.Treatment(cure=dict(I=1.0))`, and outbreaks as `ss.Delivery(move=mal.S >> mal.I)`. Targeting is `where=` (e.g. `ss.person.patch == 'Rural'`). Waning by `ss.boxcar()` runs under every solver; by any other function of time, as agents only.
 
 ### malariasim module map
 
