@@ -196,10 +196,10 @@ class Malaria(ss.Disease):
             for net in bednets:
                 blocks, kills = net.on_mosquitoes()
                 unblocked, killed = unblocked - f_in*blocks, killed + a*f_in*kills
-            tr.emerge = ss.null >> Sv @ em*N # New adult females per person per day
+            tr.emerge = ss.unborn >> Sv @ em*N # New adult females per person per day
             tr.feeding = Sv >> Ev @ a*c*p.default_infectiousness*unblocked*infectious/N
             mortality = 1/p.life_expectancy + killed if bednets else p.life_expectancy # With nets, a rate: the natural one plus the nets' killing
-            tr.mortality = Sv + Ev + Iv >> ss.null @ mortality
+            tr.mortality = Sv + Ev + Iv >> ss.dead @ mortality
             tr.eip = Ev >> Iv @ p.eip_days
             tr.mosquitoes = Sv + Ev + Iv
             tr.eir = a*Iv/people # Infectious bites per person per day (in each node)
