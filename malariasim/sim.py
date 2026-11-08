@@ -31,7 +31,7 @@ class Sim(ss.Sim):
         human_pars (dict): parameters of `ms.Malaria` (also given directly by keyword)
         mosquito_pars (dict): the same, for the mosquitoes (e.g. `emergence`, `life_expectancy`, `eir`)
         init_prev (float): the share of people infectious at the start
-        interventions (list/func): the interventions, or a function of the disease that returns them, so that they can name its states (e.g. `lambda mal: ss.Delivery(move=mal.S >> mal.I, at='2000-02-01', coverage=0.15)`)
+        interventions (list/func): the interventions, or a function of the disease that returns them, so that they can name its states (e.g. `lambda mal: ss.Event(mal.S >> mal.I, when='2000-02-01', p=0.15)`)
         kwargs (dict): parameters of `ms.Malaria` by name (e.g. `eir=20`), or passed to `ss.Sim` (e.g. `rand_seed`, `demographics`)
 
     Examples:

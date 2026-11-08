@@ -60,16 +60,16 @@ def campaign(mal):
     """ The interventions, as a function of the disease (so the outbreak can name its states) """
     out = []
     if mal.mosquito != 'eir_only':
-        out.append(ss.Delivery(move=mal.S >> mal.I, at=ss.date('2000-02-06'), coverage=0.15, name='outbreak'))
+        out.append(ss.Event(mal.S >> mal.I, when='2000-02-06', p=0.15, name='outbreak'))
     if not USE_INTERVENTIONS:
         return out
     node = ss.person.patch
     vaccine = ss.Vaccine(name='vaccine', efficacy=1.0, waning=ss.boxcar(plateau=ss.days(400)))
     bednet = ms.Bednet(name='product_bednet', repelling=0.8, blocking=0.9, killing=0.6, usage=1.0, waning=ss.boxcar(plateau=ss.days(180)))
     drug = ss.Treatment(name='drug', cure=dict(I=1.0))
-    out.append(ss.vaccinate(vaccine, at='2003-01-01', coverage=0.5, where=(ss.person.age < 30) & (node != 'Urban'), name='vacc_yr1'))
-    out.append(ss.vaccinate(bednet, at='2005-01-01', coverage=0.5, where=node != 'Peri-urban', name='bednet_2005'))
-    out.append(ss.treat(drug, at='2007-01-01', coverage=0.5, where=(ss.person.age < 20) & (node != 'Rural'), name='drug_yr7'))
+    out.append(ss.vaccinate(vaccine, when='2003-01-01', coverage=0.5, who=(ss.person.age < 30) & (node != 'Urban'), name='vacc_yr1'))
+    out.append(ss.vaccinate(bednet, when='2005-01-01', coverage=0.5, who=node != 'Peri-urban', name='bednet_2005'))
+    out.append(ss.treat(drug, when='2007-01-01', coverage=0.5, who=(ss.person.age < 20) & (node != 'Rural'), name='drug_yr7'))
     return out
 
 

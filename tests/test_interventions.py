@@ -1,7 +1,7 @@
 """
 Intervention tests: outbreaks, drugs, vaccines, and how their protection wanes
 
-The interventions are Starsim's deliveries: an outbreak is `ss.Delivery(move=mal.S >> mal.I)`, a drug
+The interventions are Starsim's deliveries: an outbreak is `ss.Event(mal.S >> mal.I)`, a drug
 `ss.treat(ss.Treatment(cure=dict(I=1.0)))`, and a vaccine `ss.vaccinate(ss.Vaccine(...))`, waning as a box then a decay (`ss.boxcar()`).
 """
 
@@ -19,12 +19,12 @@ def make_sim(interventions=None, nodes=None, **kw):
     return ms.Sim(nodes=[2000] if nodes is None else nodes, interventions=interventions, **kw).run()
 
 
-def seed(at='2000-01-11', coverage=0.15, where=None):
-    return lambda mal: ss.Delivery(move=mal.S >> mal.I, at=at, coverage=coverage, where=where, name='seed')
+def seed(when='2000-01-11', coverage=0.15, who=None):
+    return lambda mal: ss.Event(mal.S >> mal.I, when=when, p=coverage, who=who, name='seed')
 
 
-def drug(at='2000-07-01', coverage=1.0, where=None):
-    return ss.treat(ss.Treatment(cure=dict(I=1.0)), at=at, coverage=coverage, where=where, name='drug')
+def drug(when='2000-07-01', coverage=1.0, who=None):
+    return ss.treat(ss.Treatment(cure=dict(I=1.0)), when=when, coverage=coverage, who=who, name='drug')
 
 
 # Outbreaks
@@ -75,7 +75,7 @@ def test_drug_treats_infectious_only():
 def test_drug_node_targeted():
     """ A drug in node a only clears infections there, not in node b """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
-    sim = make_sim(lambda mal: [seed()(mal), drug(where=ss.person.patch == 'a')], nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
+    sim = make_sim(lambda mal: [seed()(mal), drug(who=ss.person.patch == 'a')], nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
     I = sim.results.malaria.I.by('patch')
     assert I[183, 0] < 0.1*I[181, 0], f'Expected node a cleared: {I[181, 0]:.0f} to {I[183, 0]:.0f}'
     assert I[183, 1] > 0.8*I[181, 1], f'Expected node b untouched: {I[181, 1]:.0f} to {I[183, 1]:.0f}'
@@ -93,7 +93,7 @@ def test_vaccine_reduces_infections_vs_baseline():
     """ An RTS,S-like vaccine for 80% of people reduces infections """
     vx = rtss()
     base = make_sim(seed(), rand_seed=42)
-    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(vx, at='2000-01-31', coverage=0.8)], rand_seed=42)
+    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(vx, when='2000-01-31', coverage=0.8)], rand_seed=42)
     assert vax.results.malaria.infections.sum() < base.results.malaria.infections.sum(), 'Expected fewer infections with the vaccine'
 
 
@@ -101,7 +101,7 @@ def test_vaccine_reduces_infections_vs_baseline():
 def test_vaccine_second_round_redoses():
     """ A second round reaches those vaccinated in the first, and restarts their protection (malariasim's rule, one dose at a time) """
     vx = ss.Vaccine(efficacy=1.0, waning=ss.boxcar(plateau=ss.days(30)))
-    rounds = ss.vaccinate(vx, at=['2000-02-01', '2000-06-01'], coverage=0.8, name='rounds')
+    rounds = ss.vaccinate(vx, when=['2000-02-01', '2000-06-01'], coverage=0.8, name='rounds')
     sim = make_sim(lambda mal: [seed()(mal), rounds])
     delivered = np.asarray(sim.results.rounds.delivered)
     first, second = delivered[delivered > 0][:2]
@@ -112,7 +112,7 @@ def test_vaccine_second_round_redoses():
 def test_vaccine_waning_ode():
     """ The same vaccine as an ODE (the box as levels of holding it) reduces infections """
     base = make_sim(seed(), solver='ode').results.malaria.infections.sum()
-    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(rtss(), at='2000-01-31', coverage=0.8)], solver='ode').results.malaria.infections.sum()
+    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(rtss(), when='2000-01-31', coverage=0.8)], solver='ode').results.malaria.infections.sum()
     assert vax < base, f'Expected fewer infections with the vaccine: {vax:.0f} vs {base:.0f}'
 
 
@@ -121,7 +121,7 @@ def test_vaccine_ode_permanent():
     """ A permanent vaccine (no waning) runs as an ODE, and reduces infections """
     vx = ss.Vaccine(efficacy=0.8)
     base = make_sim(seed(), solver='ode').results.malaria.infections.sum()
-    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(vx, at='2000-01-31', coverage=0.8)], solver='ode').results.malaria.infections.sum()
+    vax = make_sim(lambda mal: [seed()(mal), ss.vaccinate(vx, when='2000-01-31', coverage=0.8)], solver='ode').results.malaria.infections.sum()
     assert vax < base, f'Expected fewer infections with the vaccine: {vax:.0f} vs {base:.0f}'
 
 

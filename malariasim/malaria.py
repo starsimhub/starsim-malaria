@@ -181,6 +181,8 @@ class Malaria(ss.Disease):
             eir = ss.by(patch=mosquito_eir)
         if s['age_biting_ages'] is not None: # Relative to the mean over people at the start
             eir = eir*age_biting(s['age_biting_ages'], s['age_biting_values'], age_data, age_bins)
+        if weights is not None: # Each person's relative biting rate, by their level of biting
+            eir = eir*ss.by(biting=list(weights))
         tr.bite_indoor  = ss.Transition(S, infected, rate=b*f_in*eir, acquisition=True)
         tr.bite_outdoor = ss.Transition(S, infected, rate=b*(1 - f_in)*eir, acquisition=True)
         if human == 'seis':
@@ -214,10 +216,9 @@ class Malaria(ss.Disease):
 
         # Nodes, and biting heterogeneity
         if nodes is not None:
-            self.stratify(patch=nodes, kind='space')
+            self.stratify(patch=nodes)
         if weights is not None:
-            n = len(weights)
-            self.stratify(biting=[f'b{k}' for k in range(n)], fractions=[1/n]*n, adjust={'bite_indoor':list(weights), 'bite_outdoor':list(weights)})
+            self.stratify(biting={f'b{k}': 1/len(weights) for k in range(len(weights))})
         return
 
     @staticmethod

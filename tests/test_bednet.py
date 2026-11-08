@@ -1,7 +1,7 @@
 """
 Bednet (ITN) tests: protection of the holder from indoor bites, and the blocking and killing of mosquitoes
 
-The mosquitoes feel the nets through their coverage (`itn.coverage`): as counts, under every solver
+The mosquitoes feel the nets through their coverage (`itn.held_share`): as counts, under every solver
 when the nets wane by one box (`ss.boxcar()`), and as agents, from the holders in each node.
 """
 
@@ -19,12 +19,12 @@ def bednet(repelling=0.0, blocking=1.0, killing=1.0, usage=1.0):
     return ms.Bednet(repelling=repelling, blocking=blocking, killing=killing, usage=usage, waning=ss.boxcar(plateau=ss.days(365)))
 
 
-def make_sim(net=None, at='2000-01-31', coverage=1.0, where=None, seed=True, mosquito='ode', nodes=None, **kw):
+def make_sim(net=None, when='2000-01-31', coverage=1.0, who=None, seed=True, mosquito='ode', nodes=None, **kw):
     """ One node of 2,000 people, mosquitoes at an EIR of about 10, seeded on day 10, with a bednet on day 30 """
     def interventions(mal):
-        out = [ss.Delivery(move=mal.S >> mal.I, at='2000-01-11', coverage=0.15, name='seed')] if seed else []
+        out = [ss.Event(mal.S >> mal.I, when='2000-01-11', p=0.15, name='seed')] if seed else []
         if net is not None:
-            out.append(ss.vaccinate(net, at=at, coverage=coverage, where=where, name='itn'))
+            out.append(ss.vaccinate(net, when=when, coverage=coverage, who=who, name='itn'))
         return out
     nodes = [2000] if nodes is None else nodes
     kw = sc.mergedicts(dict(emergence=EMERGENCE_10, start=2000, stop=2001, rand_seed=0, verbose=0), kw)
@@ -51,15 +51,15 @@ def test_bednet_reduces_infections_vs_baseline():
 @sc.timer()
 def test_bednet_killing_reduces_mosquitoes():
     """ Blocking and killing for everyone kills mosquitoes: the extra death rate a*f*1 = 0.21 a day more than triples 0.1 """
-    base = make_sim(seed=False, at='2000-01-01')
-    kill = make_sim(bednet(), seed=False, at='2000-01-01')
+    base = make_sim(seed=False, when='2000-01-01')
+    kill = make_sim(bednet(), seed=False, when='2000-01-01')
     assert mosquitoes(kill) < 0.5*mosquitoes(base), f'Expected the nets to halve the mosquitoes: {mosquitoes(base):.0f} vs {mosquitoes(kill):.0f}'
 
 
 @sc.timer()
 def test_bednet_killing_scales_with_coverage():
     """ The nets of half the people kill substantially fewer mosquitoes than everyone's """
-    base, half, full = [mosquitoes(make_sim(bednet() if cov else None, coverage=cov or 1.0, seed=False, at='2000-01-01')) for cov in [0, 0.5, 1.0]]
+    base, half, full = [mosquitoes(make_sim(bednet() if cov else None, coverage=cov or 1.0, seed=False, when='2000-01-01')) for cov in [0, 0.5, 1.0]]
     assert full < half < base, f'Expected more killing at higher coverage: {base:.0f}, {half:.0f}, {full:.0f}'
     ratio = (base - half)/(base - full)
     assert 0.5 <= ratio <= 0.9, f'The effect at 50% coverage should be about 75% of that at 100%, not {ratio:.2f}'
@@ -68,7 +68,7 @@ def test_bednet_killing_scales_with_coverage():
 @sc.timer()
 def test_bednet_killing_scales_with_coverage_ode():
     """ As above, as an ODE """
-    base, half, full = [mosquitoes(make_sim(bednet() if cov else None, coverage=cov or 1.0, seed=False, at='2000-01-01', solver='ode')) for cov in [0, 0.5, 1.0]]
+    base, half, full = [mosquitoes(make_sim(bednet() if cov else None, coverage=cov or 1.0, seed=False, when='2000-01-01', solver='ode')) for cov in [0, 0.5, 1.0]]
     assert full < half < base, f'Expected more killing at higher coverage: {base:.0f}, {half:.0f}, {full:.0f}'
     ratio = (base - half)/(base - full)
     assert 0.5 <= ratio <= 0.9, f'The effect at 50% coverage should be about 75% of that at 100%, not {ratio:.2f}'
@@ -85,15 +85,15 @@ def test_bednet_killing_requires_blocking():
 @sc.timer()
 def test_bednet_full_repelling_prevents_mosquito_killing():
     """ A mosquito that is repelled is not killed """
-    base = make_sim(seed=False, at='2000-01-01')
-    rep = make_sim(bednet(repelling=1.0), seed=False, at='2000-01-01')
+    base = make_sim(seed=False, when='2000-01-01')
+    rep = make_sim(bednet(repelling=1.0), seed=False, when='2000-01-01')
     assert mosquitoes(rep) == pytest.approx(mosquitoes(base), rel=1e-6), f'Repelled mosquitoes were killed: {mosquitoes(base):.1f} vs {mosquitoes(rep):.1f}'
 
 
 @sc.timer()
 def test_bednet_repelling_scales_mosquito_killing():
     """ The killing is in proportion to the share not repelled """
-    n = {rep:mosquitoes(make_sim(bednet(repelling=rep), seed=False, at='2000-01-01')) for rep in [1.0, 0.5, 0.0]}
+    n = {rep:mosquitoes(make_sim(bednet(repelling=rep), seed=False, when='2000-01-01')) for rep in [1.0, 0.5, 0.0]}
     assert n[1.0] > n[0.5] > n[0.0], f'Expected more mosquitoes with more repelling: {n}'
     ratio = (n[1.0] - n[0.5])/(n[1.0] - n[0.0])
     assert 0.5 <= ratio <= 0.9, f'The kill effect at 50% repelling should be about 2/3 of that at 0%, not {ratio:.2f}'
@@ -112,7 +112,7 @@ def test_bednet_node_targeted():
     """ Nets in node a only: lower prevalence there than in node b """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     net = bednet(repelling=0.8, blocking=0.9, killing=0.6, usage=0.8)
-    sim = make_sim(net, where=ss.person.patch == 'a', nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
+    sim = make_sim(net, who=ss.person.patch == 'a', nodes=nodes, emergence=[EMERGENCE_10, EMERGENCE_10])
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] < prev[1], f'Expected lower prevalence in node a, with nets: {prev}'
 
@@ -139,7 +139,7 @@ def test_bednet_indoor_only_full_effect(mosquito):
 @sc.timer()
 def test_bednet_f_indoor_scales_mosquito_killing(mosquito):
     """ Nets kill more mosquitoes where more bites are indoors """
-    n = {f:mosquitoes(make_sim(bednet(), mosquito=mosquito, f_indoor=f, seed=False, at='2000-01-01')) for f in [0.0, 0.5, 1.0]}
+    n = {f:mosquitoes(make_sim(bednet(), mosquito=mosquito, f_indoor=f, seed=False, when='2000-01-01')) for f in [0.0, 0.5, 1.0]}
     assert n[0.0] > n[0.5] > n[1.0], f'Expected fewer mosquitoes with more indoor biting: {n}'
 
 

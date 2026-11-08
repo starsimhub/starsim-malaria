@@ -43,9 +43,9 @@ class MosquitoAgents(ss.Module):
 
     def init_results(self):
         super().init_results()
-        self.define_results(*[ss.Result(k, dtype=float, label=label) for k,label in
-                              [('Sv', 'Susceptible mosquitoes'), ('Ev', 'Exposed mosquitoes'), ('Iv', 'Infectious mosquitoes'),
-                               ('mosquitoes', 'Mosquitoes'), ('eir', 'EIR (infectious bites per person per day)')]])
+        self.define_results(*[ss.Result(k, dtype=float, label=label, kind=kind) for k,label,kind in
+                              [('Sv', 'Susceptible mosquitoes', 'stock'), ('Ev', 'Exposed mosquitoes', 'stock'), ('Iv', 'Infectious mosquitoes', 'stock'),
+                               ('mosquitoes', 'Mosquitoes', 'stock'), ('eir', 'EIR (infectious bites per person per day)', 'ratio')]])
         return
 
     @property

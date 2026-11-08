@@ -16,9 +16,9 @@ def make_sim(human='sis', mosquito='eir_only', **kw):
     return ms.Sim(human=human, mosquito=mosquito, **kw)
 
 
-def seed(at='2000-01-01', coverage=1.0, where=None):
+def seed(when='2000-01-01', coverage=1.0, who=None):
     """ An outbreak: a share of the susceptible infected at a time """
-    return lambda mal: ss.Delivery(move=mal.S >> mal.I, at=at, coverage=coverage, where=where, name='seed')
+    return lambda mal: ss.Event(mal.S >> mal.I, when=when, p=coverage, who=who, name='seed')
 
 
 def infected_by_node(sim):
@@ -218,7 +218,7 @@ def test_no_cross_node_transmission_agents():
     """ Mosquitoes and transmission are node-local (mosquito agents): seeding node b leaves node a uninfected """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[500, 500])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
-                   interventions=seed(coverage=0.5, where=ss.person.patch == 'b')).run()
+                   interventions=seed(coverage=0.5, who=ss.person.patch == 'b')).run()
     inf = sim.results.malaria.I.by('patch').sum(axis=0)
     assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
     assert inf[1] > 0, 'Node b was not seeded'
@@ -229,7 +229,7 @@ def test_no_cross_node_transmission_ode():
     """ The same with mosquitoes as counts """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[500, 500])
     sim = make_sim(mosquito='ode', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 90/365,
-                   interventions=seed(coverage=0.5, where=ss.person.patch == 'b')).run()
+                   interventions=seed(coverage=0.5, who=ss.person.patch == 'b')).run()
     inf = sim.results.malaria.I.by('patch').sum(axis=0)
     assert inf[0] == 0, f'Cross-node transmission: {inf[0]} person-days infected in node a'
 
@@ -239,7 +239,7 @@ def test_outbreak_seeds_node_no_cross_node_spread():
     """ An outbreak in node a on day 10: nearly all of node a is infected at day 30, and none of node b """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2000 + 30/365,
-                   interventions=seed(at='2000-01-11', where=ss.person.patch == 'a')).run()
+                   interventions=seed(when='2000-01-11', who=ss.person.patch == 'a')).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] >= 0.95, f'Node a prevalence at day 30 was {prev[0]:.1%}, expected >= 95%'
     assert prev[1] == 0, f'Cross-node transmission: node b prevalence {prev[1]:.1%}'
@@ -250,15 +250,15 @@ def test_outbreak_seeds_both_nodes():
     """ An outbreak in both nodes, with sustained transmission: both near 100% at day 730 """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002,
-                   interventions=seed(at='2000-01-11')).run()
+                   interventions=seed(when='2000-01-11')).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert (prev >= 0.95).all(), f'Prevalence at day 730 was {prev}, expected >= 95% in both nodes'
 
 
 # Vaccines and nodes
 
-def vaccinate(where=None, at='2000-04-10', coverage=1.0):
-    return ss.vaccinate(ss.Vaccine(efficacy=1.0), at=at, coverage=coverage, where=where)
+def vaccinate(who=None, when='2000-04-10', coverage=1.0):
+    return ss.vaccinate(ss.Vaccine(efficacy=1.0), when=when, coverage=coverage, who=who)
 
 
 @sc.timer()
@@ -266,7 +266,7 @@ def test_vaccine_clears_infection_both_nodes():
     """ A permanent vaccine for everyone on day 100: no new infections, so every infection has cleared by day 730 """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
-                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate()]).run()
+                   interventions=lambda mal: [seed(when='2000-01-11')(mal), vaccinate()]).run()
     inf = infected_by_node(sim)
     assert (inf == 0).all(), f'Infections left at day 730 despite a permanent vaccine: {inf}'
 
@@ -276,7 +276,7 @@ def test_vaccine_node0_only_clears_node0_not_node1():
     """ The vaccine in node a only: node a clears, node b stays endemic """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     sim = make_sim(mosquito='agents', nodes=nodes, emergence=[[1.0]*12, [1.0]*12], stop=2002, infection_duration=ss.constant(ss.days(30)),
-                   interventions=lambda mal: [seed(at='2000-01-11')(mal), vaccinate(where=ss.person.patch == 'a')]).run()
+                   interventions=lambda mal: [seed(when='2000-01-11')(mal), vaccinate(who=ss.person.patch == 'a')]).run()
     prev = sim.results.malaria.prevalence.by('patch')[-1]
     assert prev[0] == 0, f'Node a still had prevalence {prev[0]:.1%} despite a permanent vaccine'
     assert prev[1] >= 0.95, f'Node b prevalence was {prev[1]:.1%}, expected >= 95% without the vaccine'
@@ -288,7 +288,7 @@ def test_vaccine_held_by_those_vaccinated():
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
     vx = ss.Vaccine(efficacy=1.0)
     sim = make_sim(mosquito='eir_only', nodes=nodes, eir=[30, 30], stop=2002, age_data=ms.make_age_data(), demographics=ms.make_steady_state_demographics(),
-                   infection_duration=ss.constant(ss.days(30)), interventions=ss.vaccinate(vx, at='2000-04-10', coverage=1.0, where=ss.person.patch == 'a')).run()
+                   infection_duration=ss.constant(ss.days(30)), interventions=ss.vaccinate(vx, when='2000-04-10', coverage=1.0, who=ss.person.patch == 'a')).run()
     people = sim.people
     uids = people.auids
     holds = np.asarray(people[vx.dim][uids], dtype=bool)
@@ -304,7 +304,7 @@ def test_vaccine_held_by_those_vaccinated():
 def test_full_protection_blocks_transmission():
     """ A vaccine of full efficacy at the start: no infections in node a, many in node b, at the same EIR """
     nodes = ss.geo.geography(names=['a', 'b'], populations=[1000, 1000])
-    sim = make_sim(nodes=nodes, eir=[30, 30], stop=2000 + 30/365, interventions=vaccinate(where=ss.person.patch == 'a', at='2000-01-01')).run()
+    sim = make_sim(nodes=nodes, eir=[30, 30], stop=2000 + 30/365, interventions=vaccinate(who=ss.person.patch == 'a', when='2000-01-01')).run()
     inf = sim.results.malaria.infections.by('patch').sum(axis=0)
     assert inf[0] == 0, f'{inf[0]} infections in node a despite full protection'
     assert inf[1] > 0, 'No infections in node b'
@@ -313,7 +313,7 @@ def test_full_protection_blocks_transmission():
 @sc.timer()
 def test_ode_vaccine_blocks_new_infections():
     """ As an ODE: a permanent vaccine for everyone on day 1 stops new infections """
-    sim = make_ode_sim(eir=30, stop=2000 + 30/365, init_prev=0.01, interventions=vaccinate(at='2000-01-02')).run()
+    sim = make_ode_sim(eir=30, stop=2000 + 30/365, init_prev=0.01, interventions=vaccinate(when='2000-01-02')).run()
     after = sim.results.malaria.infections[3:].sum()
     assert after < 0.1, f'Expected no new infections after the vaccine, got {after:.3f}'
 
@@ -323,7 +323,7 @@ def test_ode_vaccine_reduces_infections_vs_no_vaccine():
     """ As an ODE: a vaccine for 80% on day 30 gives fewer infections over the year """
     kw = dict(eir=30, init_prev=0.01)
     no_vax = make_ode_sim(**kw).run().results.malaria.infections.sum()
-    vax = make_ode_sim(**kw, interventions=vaccinate(at='2000-01-31', coverage=0.8)).run().results.malaria.infections.sum()
+    vax = make_ode_sim(**kw, interventions=vaccinate(when='2000-01-31', coverage=0.8)).run().results.malaria.infections.sum()
     assert vax < no_vax, f'Expected fewer infections with the vaccine: {vax:.0f} vs {no_vax:.0f}'
 
 

@@ -7,10 +7,10 @@ Malaria interventions as Starsim products, delivered by Starsim's deliveries
 
 A vaccine is ``ss.Vaccine``, waning as a box then an exponential decay with ``ss.boxcar()``, e.g.
 ``ss.Vaccine(efficacy=0.8, waning=ss.boxcar(plateau=ss.days(180), decay=ss.days(730)))``. They are
-delivered by ``ss.vaccinate()`` (or ``ss.Delivery``), with targeting by ``where=`` (e.g.
-``where=(ss.person.age < 5) & (ss.person.patch == 'Rural')``). A drug that clears infection is
+delivered by ``ss.vaccinate()`` (or ``ss.Delivery``), with targeting by ``who=`` (e.g.
+``who=(ss.person.age < 5) & (ss.person.patch == 'Rural')``). A drug that clears infection is
 ``ss.Treatment(cure=dict(I=1.0))``, delivered by ``ss.treat()``, and an outbreak (seeding) is
-``ss.Delivery(move=mal.S >> mal.I)``.
+``ss.Event(mal.S >> mal.I, p=0.1)``.
 """
 
 import numpy as np
@@ -46,7 +46,7 @@ class Bednet(ss.Vaccine):
         ```python
         itn = ms.Bednet(repelling=0.5, blocking=0.9, killing=0.6, usage=0.8, waning=ss.boxcar(plateau=ss.years(3)))
         itn = ms.Bednet(blocking=0.9, killing=0.6, waning=dict(blocking=ss.boxcar(plateau=ss.days(365), decay=ss.days(365)), killing=ss.boxcar(plateau=ss.days(180), decay=ss.days(365))))
-        intv = ss.vaccinate(itn, at='2005-01-01', coverage=0.5)
+        intv = ss.vaccinate(itn, when='2005-01-01', coverage=0.5)
         ```
     """
     def __init__(self, repelling=1.0, blocking=1.0, killing=1.0, usage=1.0, waning=None, name=None, **kwargs):
@@ -95,8 +95,8 @@ class Bednet(ss.Vaccine):
     def on_mosquitoes(self):
         """
         The share of indoor bites blocked by the net, and the chance per indoor bite that a mosquito is killed by it, each the
-        mean over the people in the same node, as quantities in the mosquitoes' rates (from its coverage, `self.coverage`)
+        mean over the people in the same node, as quantities in the mosquitoes' rates (from the share of people who hold it, `self.held_share`)
         """
         if not callable(self.waning) or isinstance(self.waning, ss.boxcar): # Each holder counts the same: as much as at delivery, as long as they hold it
-            return self.protection0*self.coverage, float(self.kill(ss.days(0)))*self.coverage
-        return self.coverage(self.protection), self.coverage(self.kill)
+            return self.protection0*self.held_share, float(self.kill(ss.days(0)))*self.held_share
+        return self.held_share(self.protection), self.held_share(self.kill)

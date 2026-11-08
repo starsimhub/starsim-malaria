@@ -27,10 +27,10 @@ Three nodes, with a vaccine for children under 5 in two of them::
     nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=[6000, 3000, 1000])
     vaccine = ss.Vaccine(efficacy=0.8, waning=ss.boxcar(plateau=ss.days(180), decay=ss.days(730)))
     sim = ms.Sim(nodes=nodes, mosquito='ode', init_prev=0.1, eir=[4, 6, 8],
-                 interventions=ss.vaccinate(vaccine, at='2005-01-01', coverage=0.8,
-                                            where=(ss.person.age < 5) & (ss.person.patch != 'Urban')))
+                 interventions=ss.vaccinate(vaccine, when='2005-01-01', coverage=0.8,
+                                            who=(ss.person.age < 5) & (ss.person.patch != 'Urban')))
 """
-# Last verified on: Starsim 4.0.0rc3 (84f1803ee)
+# Last verified on: Starsim 4.0.0rc3 (6239f72bf)
 
 from .defaults          import *
 from .demographics      import compute_mortality_schedule

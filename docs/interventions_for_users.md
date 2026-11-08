@@ -45,9 +45,9 @@ vaccine = ss.Vaccine(
 nodes = ss.geo.geography(names=['Urban', 'Peri-urban', 'Rural'], populations=[6000, 3000, 1000])
 vacc_2005_u5 = ss.vaccinate(
     vaccine,
-    at       = '2005-01-01',
+    when     = '2005-01-01',
     coverage = 0.80,
-    where    = (ss.person.age >= 0.5) & (ss.person.age < 5) & (ss.person.patch != 'Peri-urban'),
+    who      = (ss.person.age >= 0.5) & (ss.person.age < 5) & (ss.person.patch != 'Peri-urban'),
 )
 
 sim = ms.Sim(
@@ -74,8 +74,8 @@ An outbreak moves people between the disease's states, so it needs the disease. 
 ```python
 def campaign(mal):
     return [
-        ss.Delivery(move=mal.S >> mal.I, at='2000-02-01', coverage=0.15, name='seed'),
-        ss.vaccinate(vaccine, at='2005-01-01', coverage=0.8, where=ss.person.age < 5),
+        ss.Event(mal.S >> mal.I, when='2000-02-01', p=0.15, name='seed'),
+        ss.vaccinate(vaccine, when='2005-01-01', coverage=0.8, who=ss.person.age < 5),
     ]
 
 sim = ms.Sim(mosquito='ode', interventions=campaign)
@@ -87,10 +87,10 @@ Each delivery has a `name`, used for its results (e.g. `sim.results.seed.deliver
 
 #### Multiple rounds of the same vaccine
 
-A delivery can have several rounds (`at=[...]`), or one product can be given by several deliveries. A second dose to the same person restarts their protection: the waning starts again from the new dose:
+A delivery can have several rounds (`when=[...]`), or one product can be given by several deliveries. A second dose to the same person restarts their protection: the waning starts again from the new dose:
 
 ```python
-rounds = ss.vaccinate(vaccine, at=['2005-01-01', '2007-01-01'], coverage=0.8, where=(ss.person.age >= 0.5) & (ss.person.age < 5), name='rounds')
+rounds = ss.vaccinate(vaccine, when=['2005-01-01', '2007-01-01'], coverage=0.8, who=(ss.person.age >= 0.5) & (ss.person.age < 5), name='rounds')
 ```
 
 #### Seeding infections with an outbreak
@@ -103,7 +103,7 @@ Whether seeding is needed at the start depends on the mosquito model. When `mosq
 def campaign(mal):
     out = []
     if mal.mosquito != 'eir_only':
-        out.append(ss.Delivery(move=mal.S >> mal.I, at='2000-01-01', coverage=1.0, name='seed'))
+        out.append(ss.Event(mal.S >> mal.I, when='2000-01-01', p=1.0, name='seed'))
     # add vaccines, bednets, etc.
     return out
 ```
@@ -114,12 +114,12 @@ Starsim checks each delivery when the sim is initialized: a time outside the sim
 
 ## 4. Targeting: Who Gets the Intervention
 
-Targeting is a condition on people, given as `where=`. If omitted, all alive individuals in all nodes are eligible. Eligibility is separate from coverage — eligibility defines the pool, coverage determines what fraction of that pool is actually dosed.
+Targeting is a condition on people, given as `who=`. If omitted, all alive individuals in all nodes are eligible. Eligibility is separate from coverage — eligibility defines the pool, coverage determines what fraction of that pool is actually dosed.
 
 ```python
-where = (ss.person.age >= 0.5) & (ss.person.age < 5)        # an age range (in years)
-where = ss.person.patch == 'Rural'                        # one node, by name
-where = (ss.person.patch != 'Urban') & (ss.person.age < 15)  # combined
+who = (ss.person.age >= 0.5) & (ss.person.age < 5)        # an age range (in years)
+who = ss.person.patch == 'Rural'                          # one node, by name
+who = (ss.person.patch != 'Urban') & (ss.person.age < 15)  # combined
 ```
 
 Conditions combine with `&` (and), `|` (or), and `~` (not). Age bounds follow the half-open convention when written as above: `0.5 <= age < 5` selects people aged 6 months up to but not including their 5th birthday.
@@ -130,18 +130,18 @@ For agents, each person has an exact age. For an ODE (`solver='ode'`), people ar
 
 #### Node targeting
 
-Nodes are the places of an `ss.geo.geography`, named when it is made (`ss.geo.geography(names=['Urban', 'Rural'], populations=[6000, 4000])`), and targeted by name: `where=ss.person.patch == 'Rural'`.
+Nodes are the places of an `ss.geo.geography`, named when it is made (`ss.geo.geography(names=['Urban', 'Rural'], populations=[6000, 4000])`), and targeted by name: `who=ss.person.patch == 'Rural'`.
 
 ## 5. Scheduling and Coverage
 
-A delivery's timing is `at=` (one date or a list, for rounds), or `start=`, `stop=`, and `interval=` for regular rounds:
+A delivery's timing is `when=`: one date or a list, for rounds, or `ss.schedule(every=..., start=..., stop=...)` for regular rounds:
 
 ```python
 ss.vaccinate(
     vaccine,
-    at       = '2005-01-01',               # or a list of dates, one per round
+    when     = '2005-01-01',               # or a list of dates, one per round
     coverage = 0.80,                       # fraction of eligible targets to dose
-    where    = ss.person.age < 5,             # optional; default = all alive
+    who      = ss.person.age < 5,             # optional; default = all alive
     name     = 'vacc_2005_u5',
 )
 ```
@@ -172,7 +172,7 @@ A second dose to the same person restarts the waning from the new dose. See Sect
 
 #### Outbreak
 
-An outbreak is `ss.Delivery(move=mal.S >> mal.I, ...)`: it moves the susceptible people it reaches to infectious (see Section 3). Coverage controls what fraction of the eligible susceptible pool is infected: `coverage=1.0` with no `where=` infects the entire susceptible population.
+An outbreak is `ss.Event(mal.S >> mal.I, ...)`: it moves the susceptible people it reaches to infectious (see Section 3). Its `p=` is the share of the eligible susceptible pool that is infected: `p=1.0` with no `who=` infects the entire susceptible population.
 
 #### `Bednet`
 
@@ -199,14 +199,14 @@ ms.Bednet(
 )
 ```
 
-It is delivered by `ss.vaccinate()`, like a vaccine. The mosquitoes read the nets' effects from their coverage (`itn.coverage`, the share of the people in the same node who hold one, each counted by the protection they have left), which `ms.Sim` adds to the mosquitoes' rates for every net delivered.
+It is delivered by `ss.vaccinate()`, like a vaccine. The mosquitoes read the nets' effects from the share who hold them (`itn.held_share`, the share of the people in the same node who hold one, each counted by the protection they have left), which `ms.Sim` adds to the mosquitoes' rates for every net delivered.
 
 #### Antimalarial drug
 
 A drug that clears infection is Starsim's `ss.Treatment`, delivered by `ss.treat()`. `cure=dict(I=1.0)` clears the infectious (in the SEIS model, those still incubating are not cleared):
 
 ```python
-mda = ss.treat(ss.Treatment(cure=dict(I=1.0)), at='2007-01-01', coverage=0.5, where=ss.person.age < 20)
+mda = ss.treat(ss.Treatment(cure=dict(I=1.0)), when='2007-01-01', coverage=0.5, who=ss.person.age < 20)
 ```
 
 Clearance is immediate. A treatment has the outcomes `cured`, `failed`, and `unneeded` (not infected), which are results of its delivery.
@@ -269,8 +269,8 @@ def campaign(mal, efficacy=0.80, coverage=0.80):
         waning   = ss.boxcar(plateau=ss.days(180), decay=ss.days(730)),
     )
     return [
-        ss.Delivery(move=mal.S >> mal.I, at='2000-02-01', coverage=0.15, name='seed'),
-        ss.vaccinate(vaccine, at='2005-01-01', coverage=coverage, name='vacc_2005'),
+        ss.Event(mal.S >> mal.I, when='2000-02-01', p=0.15, name='seed'),
+        ss.vaccinate(vaccine, when='2005-01-01', coverage=coverage, name='vacc_2005'),
     ]
 
 sims = [
@@ -320,7 +320,7 @@ The same campaign works unchanged with people as agents (`solver='abm'`, the def
 |---|---|---|
 | Coverage sampling | Bernoulli draw per person | Continuous fraction per compartment |
 | Age filtering | Exact age | Age groups — bounds on group edges |
-| Outbreak | Infects individual susceptible people | Moves `coverage × S` from susceptible to infectious |
+| Outbreak | Infects individual susceptible people | Moves `p × S` from susceptible to infectious |
 | Drug | Cures individual infectious people | Moves `coverage × I` from infectious to susceptible |
 | Waning by `ss.boxcar()` | Per-person efficacy from the time since their dose | Levels of holding the product: the box as 10 stages (so its end is spread over about `dur/√10`), then a decaying level |
 | Waning by another function of time | Per-person efficacy from the time since their dose | Not available: refused before the run |

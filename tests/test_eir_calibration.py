@@ -33,7 +33,7 @@ SCENARIOS = [ # Human, mosquitoes, solver
 
 
 def outbreak(mal):
-    return ss.Delivery(move=mal.S >> mal.I, at='2000-01-31', coverage=0.3, name='outbreak')
+    return ss.Event(mal.S >> mal.I, when='2000-01-31', p=0.3, name='outbreak')
 
 
 def node_eir(sim):
