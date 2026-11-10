@@ -30,7 +30,7 @@ Three nodes, with a vaccine for children under 5 in two of them::
                  interventions=ss.vaccinate(vaccine, when='2005-01-01', coverage=0.8,
                                             who=(ss.person.age < 5) & (ss.person.patch != 'Urban')))
 """
-# Last verified on: Starsim 4.0.0rc3 (6239f72bf)
+# Last verified on: Starsim 4.0.0rc4 (34266c4c4)
 
 from .defaults          import *
 from .demographics      import compute_mortality_schedule
