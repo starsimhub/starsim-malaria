@@ -169,8 +169,8 @@ class MosquitoAgents(ss.Module):
         self.n_people = n.sum()
         return
 
-    def record_stocks(self):
-        super().record_stocks()
+    def record_states(self):
+        super().record_states()
         res, ti = self.results, self.ti
         counts = [np.count_nonzero(self.state == k) for k in [1, 2, 3]]
         res.Sv[ti], res.Ev[ti], res.Iv[ti] = counts

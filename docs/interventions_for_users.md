@@ -199,7 +199,7 @@ ms.Bednet(
 )
 ```
 
-It is delivered by `ss.vaccinate()`, like a vaccine. The mosquitoes read the nets' effects from the share who hold them (`itn.held_share`, the share of the people in the same node who hold one, each counted by the protection they have left), which `ms.Sim` adds to the mosquitoes' rates for every net delivered.
+It is delivered by `ss.vaccinate()`, like a vaccine. The mosquitoes read the nets' effects from the share who hold them (`itn.held_frac`, the share of the people in the same node who hold one, each counted by the protection they have left), which `ms.Sim` adds to the mosquitoes' rates for every net delivered.
 
 #### Antimalarial drug
 

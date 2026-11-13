@@ -1,7 +1,7 @@
 """
 Bednet (ITN) tests: protection of the holder from indoor bites, and the blocking and killing of mosquitoes
 
-The mosquitoes feel the nets through their coverage (`itn.held_share`): as counts, under every solver
+The mosquitoes feel the nets through their coverage (`itn.held_frac`): as counts, under every solver
 when the nets wane by one box (`ss.boxcar()`), and as agents, from the holders in each node.
 """
 

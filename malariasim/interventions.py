@@ -95,8 +95,8 @@ class Bednet(ss.Vaccine):
     def on_mosquitoes(self):
         """
         The share of indoor bites blocked by the net, and the chance per indoor bite that a mosquito is killed by it, each the
-        mean over the people in the same node, as quantities in the mosquitoes' rates (from the share of people who hold it, `self.held_share`)
+        mean over the people in the same node, as quantities in the mosquitoes' rates (from the share of people who hold it, `self.held_frac`)
         """
         if not callable(self.waning) or isinstance(self.waning, ss.boxcar): # Each holder counts the same: as much as at delivery, as long as they hold it
-            return self.protection0*self.held_share, float(self.kill(ss.days(0)))*self.held_share
-        return self.held_share(self.protection), self.held_share(self.kill)
+            return self.protection0*self.held_frac, float(self.kill(ss.days(0)))*self.held_frac
+        return self.held_frac(self.protection), self.held_frac(self.kill)
